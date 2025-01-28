@@ -1,14 +1,14 @@
 Summary:        Basic and advanced IPV4-based networking
 Name:           iproute
 Version:        6.7.0
-Release:        2%{?dist}
+Release:        1001%{?dist}
 License:        GPLv2
 URL:            https://www.kernel.org/pub/linux/utils/net/iproute2
 Group:          Applications/System
 Vendor:         Microsoft Corporation
 Distribution:   Azure Linux
 Source0:        https://www.kernel.org/pub/linux/utils/net/iproute2/%{name}2-%{version}.tar.xz
-
+Patch0:         ip_link_Add_support_for_netkit.patch
 BuildRequires:      bison
 BuildRequires:      elfutils-libelf-devel
 BuildRequires:      flex
