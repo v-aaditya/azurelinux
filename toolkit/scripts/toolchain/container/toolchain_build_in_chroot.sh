@@ -341,14 +341,8 @@ touch /logs/status_libcap_complete
 echo GCC-13.2.0
 tar xf gcc-13.2.0.tar.xz
 pushd gcc-13.2.0
-case $(uname -m) in
-  x86_64)
-    sed -e '/m64=/s/lib64/lib/' -i.orig gcc/config/i386/t-linux64
-  ;;
-  aarch64)
-    sed -e '/mabi.lp64=/s/lib64/lib/' -i.orig gcc/config/aarch64/t-aarch64-linux
-  ;;
-esac
+sed -e '/m64=/s/lib64/lib/' -i.orig gcc/config/i386/t-linux64
+sed -e '/mabi.lp64=/s/lib64/lib/' -i.orig gcc/config/aarch64/t-aarch64-linux
 patch -Np1 -i /tools/CVE-2023-4039.patch
 mkdir -v build
 cd       build

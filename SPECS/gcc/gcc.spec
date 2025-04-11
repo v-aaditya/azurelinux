@@ -66,6 +66,7 @@ Source0:        https://ftp.gnu.org/gnu/gcc/%{name}-%{version}/%{name}-%{version
 Patch0:         CVE-2023-4039.patch
 Patch1:         0011-libsanitizer-Remove-crypt-and-crypt_r-interceptors.patch
 
+BuildRequires:  glibc-iconv
 BuildRequires:  gmp-devel
 BuildRequires:  mpfr-devel
 BuildRequires:  libmpc-devel
@@ -240,6 +241,10 @@ number of packages.
 %prep
 
 %autosetup -p1
+
+# Keep consistency with the raw toolchain.
+sed -e '/m64=/s/lib64/lib/' -i.orig gcc/config/i386/t-linux64
+sed -e '/mabi.lp64=/s/lib64/lib/' -i.orig gcc/config/aarch64/t-aarch64-linux
 
 function prep_target () {
     local target=$1
