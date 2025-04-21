@@ -2,13 +2,14 @@
 Summary:        Memory Management Debugger.
 Name:           valgrind
 Version:        3.22.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 License:        GPL-2.0-or-later
 Vendor:         Microsoft Corporation
 Distribution:   Azure Linux
 Group:          Development/Debuggers
 URL:            https://valgrind.org
 Source0:        https://sourceware.org/pub/%{name}/%{name}-%{version}.tar.bz2
+Patch0:         CVE-2014-4607.patch
 Requires:       glibc-debuginfo
 BuildRequires:  pkg-config
 %if 0%{?with_check}
@@ -24,7 +25,7 @@ more stable. You can also perform detailed profiling to help speed up your
 programs.
 
 %prep
-%setup -q
+%autosetup -p1
 
 %build
 CFLAGS="`echo " %{build_cflags} " | sed 's/-fstack-protector-strong//'`"
@@ -50,6 +51,9 @@ make %{?_smp_mflags} -k check
 %{_libexecdir}/valgrind/*
 
 %changelog
+* Mon Apr 21 2025 Kanishk Bansal <kanbansal@microsoft.com> - 3.22.0-2
+- Patch CVE-2014-4607 using an upstream patch
+
 * Tue Aug 06 2024 Pawel Winogrodzki <pawelwi@microsoft.com> - 3.22.0-1
 - Bump version to 3.22.0.
 
