@@ -11,6 +11,7 @@
 # settings to prevent this behavior.
 %undefine _unique_build_ids
 %undefine _unique_debug_names
+%define _find_debuginfo_opts --keep-section '.BTF'
 %global _missing_build_ids_terminate_build 1
 %global _no_recompute_build_ids 1
 
@@ -30,7 +31,7 @@
 Summary:        Linux Kernel
 Name:           kernel
 Version:        6.6.85.1
-Release:        2%{?dist}
+Release:        7000%{?dist}
 License:        GPLv2
 Vendor:         Microsoft Corporation
 Distribution:   Azure Linux
