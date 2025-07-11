@@ -10,7 +10,7 @@
 
 Summary:        Hyper-V daemons suite
 Name:           hyperv-daemons
-Version:        6.6.96.1
+Version:        6.6.93.1
 Release:        1%{?dist}
 License:        GPLv2+
 Vendor:         Microsoft Corporation
@@ -221,6 +221,9 @@ fi
 %{_sbindir}/lsvmbus
 
 %changelog
+* Fri Jul 11 2025 CBL-Mariner Servicing Account <cblmargh@microsoft.com> - 6.6.93.1-1
+- Auto-upgrade to 6.6.93.1
+
 * Mon Jul 07 2025 CBL-Mariner Servicing Account <cblmargh@microsoft.com> - 6.6.96.1-1
 - Auto-upgrade to 6.6.96.1
 
