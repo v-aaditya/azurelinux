@@ -29,8 +29,7 @@ print(string.sub(hash, 0, 16))
 Summary: Utilities from the general purpose cryptography library with TLS implementation
 Name: openssl
 Version: 3.3.3
-Release: 200001%{?dist}
-# 1: Replace Config with reformatted, reordered version that should be identical.
+Release: 300000%{?dist}
 # Epoch: 1
 Source: openssl-%{version}.tar.gz
 Source2: Makefile.certificate
@@ -380,31 +379,58 @@ export HASHBANGPERL=/usr/bin/perl
 # 	-Wl,--allow-multiple-definition
 ./Configure \
     --prefix=%{_prefix} \
-    --openssldir=%{_sysconfdir}/pki/tls ${sslflags} \
+    --openssldir=%{_sysconfdir}/pki/tls \
+    ${sslflags} \
+    ${ktlsopt} \
+    ${sslarch} \
     --libdir=%{_lib} \
     shared \
-    no-atexit \
+    no-aria \
+    enable-bf \
+    no-blake2 \
     enable-camellia \
+    no-capieng \
+    enable-cast \
+    no-chacha \
     enable-cms \
+    no-comp \
+    enable-ct \
+    enable-deprecated \
+    enable-des \
+    enable-dh \
+    enable-dsa \
+    no-dtls1 \
     no-ec2m \
+    enable-ec_nistp_64_gcc_128 \
+    enable-ecdh \
+    enable-ecdsa \
     enable-fips \
-    enable-md2 \
+    no-gost \
+    no-idea \
     no-mdc2 \
+    no-md2 \
+    enable-md4 \
+    no-poly1305 \
+    enable-rc2 \
+    enable-rc4 \
     enable-rc5 \
-    enable-rfc3779 \
+    no-rfc3779 \
+    enable-rmd160 \
     no-sctp \
-    enable-seed \
+    no-seed \
+    no-siphash \
     no-sm2 \
+    no-sm3 \
     no-sm4 \
-    zlib \
-    ${ktlsopt} \
+    no-ssl \
+    no-ssl3 \
+    no-weak-ssl-ciphers \
+    no-whirlpool \
+    no-zlib \
+    no-zlib-dynamic \
     enable-buildtest-c++ \
-    ${sslarch} \
-    -D_GNU_SOURCE \
-    $RPM_OPT_FLAGS '-DDEVRANDOM="\"/dev/urandom\"" -DREDHAT_FIPS_VERSION="\"%{fips}\""'\
+    $RPM_OPT_FLAGS '-DDEVRANDOM="\"/dev/urandom\"" -DREDHAT_FIPS_VERSION="\"%{fips}\""' \
     -Wl,--allow-multiple-definition
-
-exit 1
 
 # Do not run this in a production package the FIPS symbols must be patched-in
 #util/mkdef.pl crypto update
@@ -623,7 +649,7 @@ rm -rf $RPM_BUILD_ROOT%{_libdir}/cmake
 %ldconfig_scriptlets libs
 
 %changelog
-* Fri Aug 01 2025 tobiasb <tobiasb@microsoft.com> - 3.3.3-200000
+* Fri Aug 01 2025 tobiasb <tobiasb@microsoft.com> - 3.3.3-300000
 - TEMP: Initial fedora-like upgrade to 3.3.3
 
 * Mon Jul 14 2025 gstarovo <gstarovo@redhat.com> - 1:3.2.4-4
