@@ -29,7 +29,8 @@ print(string.sub(hash, 0, 16))
 Summary: Utilities from the general purpose cryptography library with TLS implementation
 Name: openssl
 Version: 3.3.3
-Release: 200000%{?dist}
+Release: 200001%{?dist}
+# 1: Replace Config with reformatted, reordered version that should be identical.
 # Epoch: 1
 Source: openssl-%{version}.tar.gz
 Source2: Makefile.certificate
@@ -369,14 +370,41 @@ export HASHBANGPERL=/usr/bin/perl
 # Configure the build tree.  Override OpenSSL defaults with known-good defaults
 # usable on all platforms.  The Configure script already knows to use -fPIC and
 # RPM_OPT_FLAGS, so we can skip specifiying them here.
+# ./Configure \
+# 	--prefix=%%{_prefix} --openssldir=%%{_sysconfdir}/pki/tls ${sslflags} \
+#         --libdir=%%{_lib} \
+# 	zlib enable-camellia enable-seed enable-rfc3779 no-sctp \
+# 	enable-cms enable-md2 enable-rc5 ${ktlsopt} enable-fips -D_GNU_SOURCE\
+# 	no-mdc2 no-ec2m no-sm2 no-sm4 no-atexit enable-buildtest-c++\
+# 	shared  ${sslarch} $RPM_OPT_FLAGS '-DDEVRANDOM="\"/dev/urandom\"" -DREDHAT_FIPS_VERSION="\"%%{fips}\""'\
+# 	-Wl,--allow-multiple-definition
 ./Configure \
-	--prefix=%{_prefix} --openssldir=%{_sysconfdir}/pki/tls ${sslflags} \
-        --libdir=%{_lib} \
-	zlib enable-camellia enable-seed enable-rfc3779 no-sctp \
-	enable-cms enable-md2 enable-rc5 ${ktlsopt} enable-fips -D_GNU_SOURCE\
-	no-mdc2 no-ec2m no-sm2 no-sm4 no-atexit enable-buildtest-c++\
-	shared  ${sslarch} $RPM_OPT_FLAGS '-DDEVRANDOM="\"/dev/urandom\"" -DREDHAT_FIPS_VERSION="\"%{fips}\""'\
-	-Wl,--allow-multiple-definition
+    --prefix=%{_prefix} \
+    --openssldir=%{_sysconfdir}/pki/tls ${sslflags} \
+    --libdir=%{_lib} \
+    shared \
+    no-atexit \
+    enable-camellia \
+    enable-cms \
+    no-ec2m \
+    enable-fips \
+    enable-md2 \
+    no-mdc2 \
+    enable-rc5 \
+    enable-rfc3779 \
+    no-sctp \
+    enable-seed \
+    no-sm2 \
+    no-sm4 \
+    zlib \
+    ${ktlsopt} \
+    enable-buildtest-c++ \
+    ${sslarch} \
+    -D_GNU_SOURCE \
+    $RPM_OPT_FLAGS '-DDEVRANDOM="\"/dev/urandom\"" -DREDHAT_FIPS_VERSION="\"%{fips}\""'\
+    -Wl,--allow-multiple-definition
+
+exit 1
 
 # Do not run this in a production package the FIPS symbols must be patched-in
 #util/mkdef.pl crypto update
@@ -595,7 +623,7 @@ rm -rf $RPM_BUILD_ROOT%{_libdir}/cmake
 %ldconfig_scriptlets libs
 
 %changelog
-* Fri Jul 08 2025 tobiasb <tobiasb@microsoft.com> - 3.3.3-200000
+* Fri Aug 01 2025 tobiasb <tobiasb@microsoft.com> - 3.3.3-200000
 - TEMP: Initial fedora-like upgrade to 3.3.3
 
 * Mon Jul 14 2025 gstarovo <gstarovo@redhat.com> - 1:3.2.4-4
