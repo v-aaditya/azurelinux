@@ -218,18 +218,21 @@ Patch152: 0001-AZL3-disable-signatures-for-unsupported-rsa-sizes-in.patch
 License: Apache-2.0
 URL: http://www.openssl.org/
 BuildRequires: gcc g++
-BuildRequires: coreutils, perl-interpreter, sed, zlib-devel, /usr/bin/cmp
+# BuildRequires: coreutils, perl-interpreter, sed, zlib-devel, /usr/bin/cmp
+BuildRequires: coreutils, perl-interpreter, sed, /usr/bin/cmp
 # BuildRequires: lksctp-tools-devel
 BuildRequires: /usr/bin/rename
 BuildRequires: /usr/bin/pod2man
 # BuildRequires: /usr/sbin/sysctl
+%if 0%{?with_check}
 BuildRequires: perl(Test::Harness), perl(Test::More), perl(Math::BigInt)
+%endif
 BuildRequires: perl(Module::Load::Conditional), perl(File::Temp)
 BuildRequires: perl(Time::HiRes), perl(IPC::Cmd), perl(Pod::Html), perl(Digest::SHA)
 BuildRequires: perl(FindBin), perl(lib), perl(File::Compare), perl(File::Copy), perl(bigint)
 # BuildRequires: git-core
 # BuildRequires: systemtap-sdt-devel
-Requires: coreutils
+# Requires: coreutils
 Requires: %{name}-libs%{?_isa} = %{version}-%{release}
 
 %description
