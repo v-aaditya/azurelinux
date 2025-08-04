@@ -1,7 +1,7 @@
 Summary:        Metapackage with core sets of packages
 Name:           core-packages
 Version:        %{azl}.0
-Release:        7%{?dist}
+Release:        100000%{?dist}
 License:        ASL 2.0
 Vendor:         Microsoft Corporation
 Distribution:   Azure Linux
@@ -68,13 +68,17 @@ Requires:       azurelinux-repos-ms-oss
 Requires:       azurelinux-repos
 Requires:       ncurses-libs
 Requires:       openssl
+Requires:       openssl-libs
+Requires:       openssl-devel
+Requires:       openssl-perl
+Requires:       openssl-static
 Requires:       readline
 Requires:       rpm
 Requires:       rpm-libs
 Requires:       sed
 Requires:       sqlite-libs
-Requires:       SymCrypt
-Requires:       SymCrypt-OpenSSL
+# Requires:       SymCrypt
+# Requires:       SymCrypt-OpenSSL
 Requires:       tdnf
 Requires:       tdnf-plugin-repogpgcheck
 Requires:       xz
@@ -92,6 +96,9 @@ Requires:       zlib
 %files container
 
 %changelog
+* Mon Aug 04 2025 Tobias Brick <tobiasb@microsoft.com> - 3.0-100000
+- remove SymCrypt and add other openssl packages for custom images
+
 * Thu May 29 2025 Andrew Phelps <anphel@microsoft.com> - 3.0-7
 - Add azurelinux-repos-cloud-native to the base container
 
