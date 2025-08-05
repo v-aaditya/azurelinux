@@ -361,7 +361,7 @@ echo "initrd of kernel %{uname_r} removed" >&2
 %files
 %defattr(-,root,root)
 %license COPYING
-/usr/lib/debug/%{uname_r}/*
+%{_libdir}/debug/lib/modules/%{uname_r}/*
 /boot/System.map-%{uname_r}
 /boot/config-%{uname_r}
 /boot/vmlinuz-%{uname_r}
