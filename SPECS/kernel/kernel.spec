@@ -4,6 +4,8 @@
 %define uname_r %{version}-%{release}
 %define mariner_version 3
 
+%define debug_package %{nil}
+
 # find_debuginfo.sh arguments are set by default in rpm's macros.
 # The default arguments regenerate the build-id for vmlinux in the
 # debuginfo package causing a mismatch with the build-id for vmlinuz in
@@ -32,7 +34,7 @@
 Summary:        Linux Kernel
 Name:           kernel
 Version:        6.6.96.1
-Release:        2%{?dist}
+Release:        1000%{?dist}
 License:        GPLv2
 Vendor:         Microsoft Corporation
 Distribution:   Azure Linux
