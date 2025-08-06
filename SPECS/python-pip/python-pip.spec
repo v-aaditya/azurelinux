@@ -5,7 +5,7 @@ A tool for installing and managing Python packages}
 Summary:        A tool for installing and managing Python packages
 Name:           python-pip
 Version:        24.2
-Release:        3%{?dist}
+Release:        4%{?dist}
 License:        MIT AND Python-2.0.1 AND Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause AND ISC AND LGPL-2.1-only AND MPL-2.0 AND (Apache-2.0 OR BSD-2-Clause)
 Vendor:         Microsoft Corporation
 Distribution:   Azure Linux
