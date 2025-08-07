@@ -61,7 +61,7 @@ index b2f7f7dc4b..af2b0b026c 100644
 +
      mdlen = EVP_MD_get_size(md);
  
-     if (tlen <= 0 || flen <= 0 || mdlen <= 0)
+     if (tlen <= 0 || flen <= 0)
 diff --git a/crypto/rsa/rsa_pss.c b/crypto/rsa/rsa_pss.c
 index bb46ec64c7..c0fdf232da 100644
 --- a/crypto/rsa/rsa_pss.c
