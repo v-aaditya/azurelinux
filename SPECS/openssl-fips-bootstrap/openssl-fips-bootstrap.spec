@@ -30,7 +30,7 @@ print(string.sub(hash, 0, 16))
 Summary: Utilities from the general purpose cryptography library with TLS implementation
 Name: openssl-fips-bootstrap
 Version: 3.1.2
-Release: 1000001%{?dist}
+Release: 1000003%{?dist}
 # Epoch: 1
 Source: openssl-%{version}.tar.gz
 Source2: Makefile.certificate
@@ -86,8 +86,10 @@ Patch34:  0034.fipsinstall_disable.patch
 Patch35:  0035-speed-skip-unavailable-dgst.patch
 # # Extra public/private key checks required by FIPS-140-3
 Patch44:  0044-FIPS-140-3-keychecks.patch
+# # # Minimize fips services
+# Patch45:  0045-FIPS-services-minimize.patch
 # # Minimize fips services
-Patch45:  0045-FIPS-services-minimize.patch
+Patch45:  0045-FIPS-services-minimize-3.1.2-AZL3.patch
 # # # Execute KATS before HMAC verification
 # Patch47:  0047-FIPS-early-KATS.patch
 # # Execute KATS before HMAC verification
@@ -158,6 +160,7 @@ Patch114: 0114-FIPS-enforce-EMS-support.patch
 Patch136: 0136-CVE-2024-6119.patch
 
 Patch150: 0001-AZL3-disable-small-rsa-keys-in-fips-mode-3.1.2.patch
+Patch151: 0001-AZL3-enable-all-padding-similar-to-3.5.patch
 
 License: Apache-2.0
 URL: http://www.openssl.org/
