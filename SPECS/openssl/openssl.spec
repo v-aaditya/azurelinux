@@ -29,7 +29,7 @@ print(string.sub(hash, 0, 16))
 Summary: Utilities from the general purpose cryptography library with TLS implementation
 Name: openssl
 Version: 3.3.3
-Release: 500000%{?dist}
+Release: 1000000%{?dist}
 # Epoch: 1
 Source: openssl-%{version}.tar.gz
 Source2: Makefile.certificate
@@ -233,7 +233,7 @@ BuildRequires: perl(FindBin), perl(lib), perl(File::Compare), perl(File::Copy), 
 # BuildRequires: git-core
 # BuildRequires: systemtap-sdt-devel
 # Requires: coreutils
-BuildRequires: %{name}-fips-bootstrap = %{version}-%{release}
+BuildRequires: %{name}-fips-bootstrap = 3.1.2-1000000.azl3
 Requires: %{name}-libs%{?_isa} = %{version}-%{release}
 
 %description
