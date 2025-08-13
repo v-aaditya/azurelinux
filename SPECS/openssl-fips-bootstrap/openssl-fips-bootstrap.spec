@@ -185,7 +185,7 @@ BuildRequires: perl(FindBin), perl(lib), perl(File::Compare), perl(File::Copy), 
 Bootstrapper to build the OpenSSL FIPS provider to use in the openssl package.
 
 %prep
-%autosetup -S git -n openssl-%{version}
+%autosetup -p1 -n openssl-%{version}
 
 %build
 # Figure out which flags we want to use.
