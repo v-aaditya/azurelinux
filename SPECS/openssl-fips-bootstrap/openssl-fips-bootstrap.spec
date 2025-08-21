@@ -24,13 +24,21 @@ sha256sum:close()
 print(string.sub(hash, 0, 16))
 }
 
+# Since this package exists only as a build-time dependency for openssl so
+# it can get fips.so and related debug information, we embed the debug information
+# directly into the main package itself.
+# To do that, we first disable debug_package, which prevents the package
+# itself from being created.
+# Below, in __spec_install_post, we then unconditionally generate debug
+# information and mangle it so it installs the correct files and directories
+# into this package.
 %global debug_package   %{nil}
 %global _performance_build 1
 
 Summary: Utilities from the general purpose cryptography library with TLS implementation
 Name: openssl-fips-bootstrap
 Version: 3.1.2
-Release: 1000003%{?dist}
+Release: 5000000%{?dist}
 # Epoch: 1
 Source: openssl-%{version}.tar.gz
 Source2: Makefile.certificate
@@ -382,83 +390,100 @@ make test HARNESS_JOBS=8
     %{__os_install_post} \
 %{nil}
 %else
-%define __spec_install_post \
-    %{?__debug_package:%{__debug_install_post}} \
-    %{__arch_install_post} \
-    %{__os_install_post} \
-    FAKE_ROOT="${RPM_BUILD_ROOT}/fake-root" \
-    dd if=/dev/zero bs=1 count=32 of=$FAKE_ROOT%{_libdir}/ossl-modules/tmp.mac \
-    objcopy --update-section .rodata1=$FAKE_ROOT%{_libdir}/ossl-modules/tmp.mac $FAKE_ROOT%{_libdir}/ossl-modules/fips.so $FAKE_ROOT%{_libdir}/ossl-modules/fips.so.zeromac \
-    mv $FAKE_ROOT%{_libdir}/ossl-modules/fips.so.zeromac $FAKE_ROOT%{_libdir}/ossl-modules/fips.so \
-    rm $FAKE_ROOT%{_libdir}/ossl-modules/tmp.mac \
-    OPENSSL_CONF=/dev/null LD_LIBRARY_PATH=. apps/openssl dgst -binary -sha256 -mac HMAC -macopt hexkey:f4556650ac31d35461610bac4ed81b1a181b2d8a43ea2854cbae22ca74560813 < $FAKE_ROOT%{_libdir}/ossl-modules/fips.so > $FAKE_ROOT%{_libdir}/ossl-modules/fips.so.hmac \
-    objcopy --update-section .rodata1=$FAKE_ROOT%{_libdir}/ossl-modules/fips.so.hmac $FAKE_ROOT%{_libdir}/ossl-modules/fips.so $FAKE_ROOT%{_libdir}/ossl-modules/fips.so.mac \
-    mv $FAKE_ROOT%{_libdir}/ossl-modules/fips.so.mac $FAKE_ROOT%{_libdir}/ossl-modules/fips.so \
-    rm $FAKE_ROOT%{_libdir}/ossl-modules/fips.so.hmac \
-    cp $FAKE_ROOT%{_libdir}/ossl-modules/fips.so ${RPM_BUILD_ROOT}/opt/openssl-fips-bootstrap/ \
-    rm -rf $FAKE_ROOT \
-%{nil}
+%define __spec_install_post %{expand:
+    # Per comments near debug_package above, we first unconditionally
+    # generate debug information.
+    # The normal command here is:
+    # %%{?__debug_package:%%{__debug_install_post}}
+    # Which will only generate debug information if __debug_package is defined
+    # (which is, in turn defined when debug_information is defined).
+    %{__debug_install_post}
+    # These are the rest of the standard __spec_install_post
+    %{__arch_install_post}
+    %{__os_install_post}
+
+    # Now that fips.so is stripped, embed the HMAC key.
+    # This is taken directly from fedora-42.
+    dd if=/dev/zero bs=1 count=32 of=$RPM_BUILD_ROOT%{_libdir}/ossl-modules/tmp.mac
+    objcopy --update-section .rodata1=$RPM_BUILD_ROOT%{_libdir}/ossl-modules/tmp.mac $RPM_BUILD_ROOT%{_libdir}/ossl-modules/fips.so $RPM_BUILD_ROOT%{_libdir}/ossl-modules/fips.so.zeromac
+    mv $RPM_BUILD_ROOT%{_libdir}/ossl-modules/fips.so.zeromac $RPM_BUILD_ROOT%{_libdir}/ossl-modules/fips.so
+    rm $RPM_BUILD_ROOT%{_libdir}/ossl-modules/tmp.mac
+    OPENSSL_CONF=/dev/null LD_LIBRARY_PATH=. apps/openssl dgst -binary -sha256 -mac HMAC -macopt hexkey:f4556650ac31d35461610bac4ed81b1a181b2d8a43ea2854cbae22ca74560813 < $RPM_BUILD_ROOT%{_libdir}/ossl-modules/fips.so > $RPM_BUILD_ROOT%{_libdir}/ossl-modules/fips.so.hmac
+    objcopy --update-section .rodata1=$RPM_BUILD_ROOT%{_libdir}/ossl-modules/fips.so.hmac $RPM_BUILD_ROOT%{_libdir}/ossl-modules/fips.so $RPM_BUILD_ROOT%{_libdir}/ossl-modules/fips.so.mac
+    mv $RPM_BUILD_ROOT%{_libdir}/ossl-modules/fips.so.mac $RPM_BUILD_ROOT%{_libdir}/ossl-modules/fips.so
+    rm $RPM_BUILD_ROOT%{_libdir}/ossl-modules/fips.so.hmac
+
+    # Move fips.so to the actual install directory -- this is the directory
+    # where the openssl build will look for it.
+    # The simple way we do this below relies on the fact that
+    # all files have been installed in /usr. If that's
+    # ever not the case, we will need to be more robust.
+    # So here we confirm that the only thing in the directory is /usr
+    # and that it itself is a directory.
+    if [ $(ls -A $RPM_BUILD_ROOT | wc -l) -ne 1 ] || [ ! -d "$RPM_BUILD_ROOT/usr" ]; then
+      echo "ERROR: Build Root is expected to have a single directory 'usr' in it."
+      ls -Al $RPM_BUILD_ROOT
+      exit 1
+    fi
+    install -d "${RPM_BUILD_ROOT}/opt/%{name}/install/"
+    mv $RPM_BUILD_ROOT/usr $RPM_BUILD_ROOT/opt/%{name}/install/
+
+    # Openssl's debuginfo package will need all the debug information we generated
+    # along with the files/dirs list. Since it will copy these to the standard
+    # installation locations, it needs an unmodified version, so we install it here.
+    install -d "${RPM_BUILD_ROOT}/opt/%{name}/metadata/"
+    cp debugfiles.list $RPM_BUILD_ROOT/opt/%{name}/metadata/
+}
 %endif
 
 %define __provides_exclude_from %{_libdir}/openssl
 
 %install
 [ "$RPM_BUILD_ROOT" != "/" ] && rm -rf $RPM_BUILD_ROOT
-# TOBIASB: Install into a fake directory so we can easily delete it later.
-FAKE_ROOT="${RPM_BUILD_ROOT}/fake-root"
-install -d $FAKE_ROOT
-install -d "${RPM_BUILD_ROOT}/opt/"
-install -d "${RPM_BUILD_ROOT}/opt/openssl-fips-bootstrap"
-
-
+# AZL3: We do the full install of openssl so everything is exactly as if we were using this "for real".
+# See bottom of the installation for how we prune things we don't want.
 # Install OpenSSL.
-install -d $FAKE_ROOT{%{_bindir},%{_includedir},%{_libdir},%{_mandir},%{_libdir}/openssl,%{_pkgdocdir}}
-# %%make_install
-/usr/bin/make install DESTDIR=$FAKE_ROOT INSTALL="/bin/install -p"
-rename so.%{soversion} so.%{version} $FAKE_ROOT%{_libdir}/*.so.%{soversion}
-for lib in $FAKE_ROOT%{_libdir}/*.so.%{version} ; do
+install -d $RPM_BUILD_ROOT{%{_bindir},%{_includedir},%{_libdir},%{_mandir},%{_libdir}/openssl,%{_pkgdocdir}}
+%make_install
+rename so.%{soversion} so.%{version} $RPM_BUILD_ROOT%{_libdir}/*.so.%{soversion}
+for lib in $RPM_BUILD_ROOT%{_libdir}/*.so.%{version} ; do
 	chmod 755 ${lib}
-	ln -s -f `basename ${lib}` $FAKE_ROOT%{_libdir}/`basename ${lib} .%{version}`
-	ln -s -f `basename ${lib}` $FAKE_ROOT%{_libdir}/`basename ${lib} .%{version}`.%{soversion}
+	ln -s -f `basename ${lib}` $RPM_BUILD_ROOT%{_libdir}/`basename ${lib} .%{version}`
+	ln -s -f `basename ${lib}` $RPM_BUILD_ROOT%{_libdir}/`basename ${lib} .%{version}`.%{soversion}
 done
-
-# # Remove static libraries
-# for lib in $RPM_BUILD_ROOT%{_libdir}/*.a ; do
-# 	rm -f ${lib}
-# done
 
 # Install a makefile for generating keys and self-signed certs, and a script
 # for generating them on the fly.
-mkdir -p $FAKE_ROOT%{_sysconfdir}/pki/tls/certs
-mkdir -p $FAKE_ROOT%{_sysconfdir}/pki/tls/openssl.d
-install -m644 %{SOURCE2} $FAKE_ROOT%{_pkgdocdir}/Makefile.certificate
-install -m755 %{SOURCE6} $FAKE_ROOT%{_bindir}/make-dummy-cert
-install -m755 %{SOURCE7} $FAKE_ROOT%{_bindir}/renew-dummy-cert
+mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/pki/tls/certs
+mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/pki/tls/openssl.d
+install -m644 %{SOURCE2} $RPM_BUILD_ROOT%{_pkgdocdir}/Makefile.certificate
+install -m755 %{SOURCE6} $RPM_BUILD_ROOT%{_bindir}/make-dummy-cert
+install -m755 %{SOURCE7} $RPM_BUILD_ROOT%{_bindir}/renew-dummy-cert
 
 # Move runable perl scripts to bindir
-mv $FAKE_ROOT%{_sysconfdir}/pki/tls/misc/*.pl $FAKE_ROOT%{_bindir}
-mv $FAKE_ROOT%{_sysconfdir}/pki/tls/misc/tsget $FAKE_ROOT%{_bindir}
+mv $RPM_BUILD_ROOT%{_sysconfdir}/pki/tls/misc/*.pl $RPM_BUILD_ROOT%{_bindir}
+mv $RPM_BUILD_ROOT%{_sysconfdir}/pki/tls/misc/tsget $RPM_BUILD_ROOT%{_bindir}
 
 # Rename man pages so that they don't conflict with other system man pages.
-pushd $FAKE_ROOT%{_mandir}
+pushd $RPM_BUILD_ROOT%{_mandir}
 mv man5/config.5ossl man5/openssl.cnf.5
 popd
 
-mkdir -m755 $FAKE_ROOT%{_sysconfdir}/pki/CA
-mkdir -m700 $FAKE_ROOT%{_sysconfdir}/pki/CA/private
-mkdir -m755 $FAKE_ROOT%{_sysconfdir}/pki/CA/certs
-mkdir -m755 $FAKE_ROOT%{_sysconfdir}/pki/CA/crl
-mkdir -m755 $FAKE_ROOT%{_sysconfdir}/pki/CA/newcerts
+mkdir -m755 $RPM_BUILD_ROOT%{_sysconfdir}/pki/CA
+mkdir -m700 $RPM_BUILD_ROOT%{_sysconfdir}/pki/CA/private
+mkdir -m755 $RPM_BUILD_ROOT%{_sysconfdir}/pki/CA/certs
+mkdir -m755 $RPM_BUILD_ROOT%{_sysconfdir}/pki/CA/crl
+mkdir -m755 $RPM_BUILD_ROOT%{_sysconfdir}/pki/CA/newcerts
 
 # Ensure the config file timestamps are identical across builds to avoid
 # mulitlib conflicts and unnecessary renames on upgrade
-touch -r %{SOURCE2} $FAKE_ROOT%{_sysconfdir}/pki/tls/openssl.cnf
-touch -r %{SOURCE2} $FAKE_ROOT%{_sysconfdir}/pki/tls/ct_log_list.cnf
+touch -r %{SOURCE2} $RPM_BUILD_ROOT%{_sysconfdir}/pki/tls/openssl.cnf
+touch -r %{SOURCE2} $RPM_BUILD_ROOT%{_sysconfdir}/pki/tls/ct_log_list.cnf
 
-rm -f $FAKE_ROOT%{_sysconfdir}/pki/tls/openssl.cnf.dist
-rm -f $FAKE_ROOT%{_sysconfdir}/pki/tls/ct_log_list.cnf.dist
+rm -f $RPM_BUILD_ROOT%{_sysconfdir}/pki/tls/openssl.cnf.dist
+rm -f $RPM_BUILD_ROOT%{_sysconfdir}/pki/tls/ct_log_list.cnf.dist
 #we don't use native fipsmodule.cnf because FIPS module is loaded automatically
-rm -f $FAKE_ROOT%{_sysconfdir}/pki/tls/fipsmodule.cnf
+rm -f $RPM_BUILD_ROOT%{_sysconfdir}/pki/tls/fipsmodule.cnf
 
 # Determine which arch opensslconf.h is going to try to #include.
 basearch=%{_arch}
@@ -476,32 +501,35 @@ basearch=sparc64
 sed -i '/^\# ifndef OPENSSL_NO_STATIC_ENGINE/i\
 # if !__has_include(<openssl/engine.h>) && !defined(OPENSSL_NO_ENGINE)\
 #  define OPENSSL_NO_ENGINE\
-# endif' $FAKE_ROOT/%{_prefix}/include/openssl/configuration.h
+# endif' $RPM_BUILD_ROOT/%{_prefix}/include/openssl/configuration.h
 
 %ifarch %{multilib_arches}
 # Do an configuration.h switcheroo to avoid file conflicts on systems where you
 # can have both a 32- and 64-bit version of the library, and they each need
 # their own correct-but-different versions of opensslconf.h to be usable.
 install -m644 %{SOURCE10} \
-	$FAKE_ROOT/%{_prefix}/include/openssl/configuration-${basearch}.h
-cat $FAKE_ROOT/%{_prefix}/include/openssl/configuration.h >> \
-	$FAKE_ROOT/%{_prefix}/include/openssl/configuration-${basearch}.h
+	$RPM_BUILD_ROOT/%{_prefix}/include/openssl/configuration-${basearch}.h
+cat $RPM_BUILD_ROOT/%{_prefix}/include/openssl/configuration.h >> \
+	$RPM_BUILD_ROOT/%{_prefix}/include/openssl/configuration-${basearch}.h
 install -m644 %{SOURCE9} \
-	$FAKE_ROOT/%{_prefix}/include/openssl/configuration.h
+	$RPM_BUILD_ROOT/%{_prefix}/include/openssl/configuration.h
 %endif
-# ln -s /etc/crypto-policies/back-ends/openssl_fips.config $FAKE_ROOT%{_sysconfdir}/pki/tls/fips_local.cnf
-cat > $FAKE_ROOT%{_sysconfdir}/pki/tls/fips_local.cnf <<EOF
+# ln -s /etc/crypto-policies/back-ends/openssl_fips.config $RPM_BUILD_ROOT%{_sysconfdir}/pki/tls/fips_local.cnf
+cat > $RPM_BUILD_ROOT%{_sysconfdir}/pki/tls/fips_local.cnf <<EOF
 
 [fips_sect]
 tls1-prf-ems-check = 1
 activate = 1
 EOF
 
-# AZL3: Remove cmake files that are installed for some reason.
-rm -rf $FAKE_ROOT%{_libdir}/cmake
+# AZL3: Delete everything but fips.so so the debuginfo process doesn't pick up unnecessary files.
+# To do this, we delete all files and links that aren't fips.so, and then clean up empty directories.
+find $RPM_BUILD_ROOT -type f ! -name fips.so -delete
+find $RPM_BUILD_ROOT -type l ! -name fips.so -delete
+find $RPM_BUILD_ROOT -type d -empty -delete
 
 %files
-/opt/openssl-fips-bootstrap/fips.so
+/opt/%{name}
 
 %changelog
 * Mon Aug 04 2025 Tobias Brick <tobiasb@microsoft.com> - 3.3.3-500000

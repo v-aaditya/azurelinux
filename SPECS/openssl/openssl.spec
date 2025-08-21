@@ -29,7 +29,7 @@ print(string.sub(hash, 0, 16))
 Summary: Utilities from the general purpose cryptography library with TLS implementation
 Name: openssl
 Version: 3.3.3
-Release: 1000003%{?dist}
+Release: 5000000%{?dist}
 # Epoch: 1
 Source: openssl-%{version}.tar.gz
 Source2: Makefile.certificate
@@ -233,7 +233,7 @@ BuildRequires: perl(FindBin), perl(lib), perl(File::Compare), perl(File::Copy), 
 # BuildRequires: git-core
 # BuildRequires: systemtap-sdt-devel
 # Requires: coreutils
-BuildRequires: %{name}-fips-bootstrap = 3.1.2-1000003.azl3
+BuildRequires: %{name}-fips-bootstrap = 3.1.2-5000000.azl3
 Requires: %{name}-libs%{?_isa} = %{version}-%{release}
 
 %description
@@ -491,25 +491,30 @@ make test HARNESS_JOBS=8
     %{__os_install_post} \
 %{nil}
 %else
-%define __spec_install_post \
-    %{?__debug_package:%{__debug_install_post}} \
-    %{__arch_install_post} \
-    %{__os_install_post} \
-    ls -alhF $RPM_BUILD_ROOT/%{_libdir}/ossl-modules/fips.so \
-    cp /opt/openssl-fips-bootstrap/fips.so $RPM_BUILD_ROOT/%{_libdir}/ossl-modules/fips.so \
-    ls -alhF $RPM_BUILD_ROOT/%{_libdir}/ossl-modules/fips.so \
-%{nil}
+%define __spec_install_post %{expand:
+    %{?__debug_package:%{__debug_install_post}}
+    %{__arch_install_post}
+    %{__os_install_post}
+    # Files from the openssl-fips-bootstrap package are somewhat interspersed with
+    # the files we provide, so we can't just do a bulk copy.
+    # rsync would work but we don't have that in the toolchain.
+    # Instead, we copy files one by one, and fail the build if there any duplicates.
+    pushd /opt/openssl-fips-bootstrap/install || exit 1
+    find . -type f | while read file; do
+        mkdir -p "${RPM_BUILD_ROOT}/$(dirname "$file")"
+        if [ -e "${RPM_BUILD_ROOT}/$file" ]; then
+            echo "ERROR: $file already exists in ${RPM_BUILD_ROOT}. Shouldn't happen."
+            exit 1
+        fi
+        cp "$file" "$RPM_BUILD_ROOT/$file"
+    done
+    popd
+
+    # Merge the debugfiles.list into ours.
+    mv debugfiles.list debugfiles.list.orig
+    cat debugfiles.list.orig /opt/openssl-fips-bootstrap/metadata/debugfiles.list | sort --unique > debugfiles.list
+}
 %endif
-
-
-# dd if=/dev/zero bs=1 count=32 of=$RPM_BUILD_ROOT%%{_libdir}/ossl-modules/tmp.mac \
-# objcopy --update-section .rodata1=$RPM_BUILD_ROOT%%{_libdir}/ossl-modules/tmp.mac $RPM_BUILD_ROOT%%{_libdir}/ossl-modules/fips.so $RPM_BUILD_ROOT%%{_libdir}/ossl-modules/fips.so.zeromac \
-# mv $RPM_BUILD_ROOT%%{_libdir}/ossl-modules/fips.so.zeromac $RPM_BUILD_ROOT%%{_libdir}/ossl-modules/fips.so \
-# rm $RPM_BUILD_ROOT%%{_libdir}/ossl-modules/tmp.mac \
-# OPENSSL_CONF=/dev/null LD_LIBRARY_PATH=. apps/openssl dgst -binary -sha256 -mac HMAC -macopt hexkey:f4556650ac31d35461610bac4ed81b1a181b2d8a43ea2854cbae22ca74560813 < $RPM_BUILD_ROOT%%{_libdir}/ossl-modules/fips.so > $RPM_BUILD_ROOT%%{_libdir}/ossl-modules/fips.so.hmac \
-# objcopy --update-section .rodata1=$RPM_BUILD_ROOT%%{_libdir}/ossl-modules/fips.so.hmac $RPM_BUILD_ROOT%%{_libdir}/ossl-modules/fips.so $RPM_BUILD_ROOT%%{_libdir}/ossl-modules/fips.so.mac \
-# mv $RPM_BUILD_ROOT%%{_libdir}/ossl-modules/fips.so.mac $RPM_BUILD_ROOT%%{_libdir}/ossl-modules/fips.so \
-# rm $RPM_BUILD_ROOT%%{_libdir}/ossl-modules/fips.so.hmac \
 
 %define __provides_exclude_from %{_libdir}/openssl
 
@@ -602,6 +607,9 @@ EOF
 
 # AZL3: Remove cmake files that are install for some reason.
 rm -rf $RPM_BUILD_ROOT%{_libdir}/cmake
+
+# AZL3: Remove fips.so so debuginfo doesn't get generated for it.
+rm -f $RPM_BUILD_ROOT%{_libdir}/ossl-modules/fips.so
 
 %files
 %{!?_licensedir:%global license %%doc}
