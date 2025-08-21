@@ -1,7 +1,7 @@
 Summary:        Metapackage with core sets of packages
 Name:           core-packages
 Version:        %{azl}.0
-Release:        100000%{?dist}
+Release:        5000000%{?dist}
 License:        ASL 2.0
 Vendor:         Microsoft Corporation
 Distribution:   Azure Linux
@@ -72,6 +72,7 @@ Requires:       openssl-libs
 Requires:       openssl-devel
 Requires:       openssl-perl
 Requires:       openssl-static
+Requires:       openssl-debuginfo
 Requires:       readline
 Requires:       rpm
 Requires:       rpm-libs
