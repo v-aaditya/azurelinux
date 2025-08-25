@@ -3,7 +3,7 @@
 Summary:        A highly-available key value store for shared configuration
 Name:           etcd
 Version:        3.5.21
-Release:        1%{?dist}
+Release:        2%{?dist}
 License:        ASL 2.0
 Vendor:         Microsoft Corporation
 Distribution:   Azure Linux
@@ -44,7 +44,7 @@ Source1:        etcd.service
 #             --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime \
 #             -cJf [tarball name] [folder to tar]
 Source2:        %{name}-%{version}-vendor.tar.gz
-BuildRequires:  golang >= 1.16
+BuildRequires:  golang >= 1.24.6
 
 %description
 A highly-available key value store for shared configuration and service discovery.
@@ -145,6 +145,9 @@ install -vdm755 %{buildroot}%{_sharedstatedir}/etcd
 /%{_docdir}/%{name}-%{version}-tools/*
 
 %changelog
+* Mon Aug 25 2025 Kanishk Bansal <kanbansal@microsoft.com> - 3.5.21-2
+- Rebuild with latest golang
+
 * Sun Mar 30 2025 CBL-Mariner Servicing Account <cblmargh@microsoft.com> - 3.5.21-1
 - Auto-upgrade to 3.5.21 - for CVE-2025-30204 [High]
 
