@@ -29,7 +29,7 @@ print(string.sub(hash, 0, 16))
 Summary: Utilities from the general purpose cryptography library with TLS implementation
 Name: openssl
 Version: 3.3.3
-Release: 5000000%{?dist}
+Release: 6000000%{?dist}
 # Epoch: 1
 Source: openssl-%{version}.tar.gz
 Source2: Makefile.certificate
@@ -214,6 +214,8 @@ Patch150: 0001-AZL3-disable-eddsa-in-speed-in-fips-mode.patch
 Patch151: 0001-AZL3-disable-kems-for-unsupported-rsa-sizes-in-speed.patch
 # TODO: document, rename -- maybe fold into the other speed one.
 Patch152: 0001-AZL3-disable-signatures-for-unsupported-rsa-sizes-in.patch
+# TODO: document, rename -- maybe fold into 0045
+Patch153: 0001-AZL3-skip-eddsa-test-in-30-test_pairwise_fail.t.patch
 
 License: Apache-2.0
 URL: http://www.openssl.org/
@@ -233,7 +235,7 @@ BuildRequires: perl(FindBin), perl(lib), perl(File::Compare), perl(File::Copy), 
 # BuildRequires: git-core
 # BuildRequires: systemtap-sdt-devel
 # Requires: coreutils
-BuildRequires: %{name}-fips-bootstrap = 3.1.2-5000000.azl3
+BuildRequires: %{name}-fips-bootstrap = 3.1.2-6000000.azl3
 Requires: %{name}-libs%{?_isa} = %{version}-%{release}
 
 %description
@@ -447,16 +449,13 @@ for i in libcrypto.pc libssl.pc openssl.pc ; do
 done
 
 %check
-exit 0
-# TOBIASB: skip testing for shorter iteration
-# Verify that what was compiled actually works.
-
-# Hack - either enable SCTP AUTH chunks in kernel or disable sctp for check
-(sysctl net.sctp.addip_enable=1 && sysctl net.sctp.auth_enable=1) || \
-(echo 'Failed to enable SCTP AUTH chunks, disabling SCTP for tests...' &&
- sed '/"msan" => "default",/a\ \ "sctp" => "default",' configdata.pm > configdata.pm.new && \
- touch -r configdata.pm configdata.pm.new && \
- mv -f configdata.pm.new configdata.pm)
+# AZL3: We don't use sctp.
+# # Hack - either enable SCTP AUTH chunks in kernel or disable sctp for check
+# (sysctl net.sctp.addip_enable=1 && sysctl net.sctp.auth_enable=1) || \
+# (echo 'Failed to enable SCTP AUTH chunks, disabling SCTP for tests...' &&
+#  sed '/"msan" => "default",/a\ \ "sctp" => "default",' configdata.pm > configdata.pm.new && \
+#  touch -r configdata.pm configdata.pm.new && \
+#  mv -f configdata.pm.new configdata.pm)
 
 # We must revert patch4 before tests otherwise they will fail
 patch -p1 -R < %{PATCH4}
@@ -478,7 +477,8 @@ LD_LIBRARY_PATH=. apps/openssl dgst -binary -sha256 -mac HMAC -macopt hexkey:f45
 objcopy --update-section .rodata1=providers/fips.so.hmac providers/fips.so providers/fips.so.mac
 mv providers/fips.so.mac providers/fips.so
 #run tests itself
-make test HARNESS_JOBS=8
+# make test HARNESS_JOBS=8
+make test HARNESS_JOBS=1
 
 # Add generation of HMAC checksum of the final stripped library
 # We manually copy standard definition of __spec_install_post

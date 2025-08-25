@@ -1,4 +1,4 @@
-From 018d1aff0cc62db873975701923c0855350eb5eb Mon Sep 17 00:00:00 2001
+From c54893217cad8669c2cc71833fe459b03b548749 Mon Sep 17 00:00:00 2001
 From: Clemens Lang <cllang@redhat.com>
 Date: Thu, 21 Mar 2024 19:10:57 +0100
 Subject: [PATCH] Instrument with USDT probes related to SHA-1 deprecation
@@ -20,8 +20,8 @@ Submitted-by: Alexander Sosedkin <asosedkin@redhat.com>
  crypto/evp/m_sigver.c                    | 16 ++++++++++++----
  crypto/evp/pmeth_lib.c                   | 16 ++++++++++++----
  providers/common/securitycheck.c         | 15 +++++++++++----
- providers/common/securitycheck_default.c | 14 +++++++++++++-
- 4 files changed, 48 insertions(+), 13 deletions(-)
+ providers/common/securitycheck_default.c | 15 +++++++++++++++
+ 4 files changed, 50 insertions(+), 12 deletions(-)
 
 diff --git a/crypto/evp/m_sigver.c b/crypto/evp/m_sigver.c
 index 8f16671..2924313 100644
@@ -126,7 +126,7 @@ index f41880e..013109b 100644
  
      return mdnid;
 diff --git a/providers/common/securitycheck_default.c b/providers/common/securitycheck_default.c
-index 2ca7a59..99e8a56 100644
+index 2ca7a59..9b7f28e 100644
 --- a/providers/common/securitycheck_default.c
 +++ b/providers/common/securitycheck_default.c
 @@ -17,6 +17,9 @@
@@ -139,7 +139,7 @@ index 2ca7a59..99e8a56 100644
  /* Disable the security checks in the default provider */
  int ossl_securitycheck_enabled(OSSL_LIB_CTX *libctx)
  {
-@@ -46,9 +49,18 @@ int ossl_digest_rsa_sign_get_md_nid(OSSL_LIB_CTX *ctx, const EVP_MD *md,
+@@ -46,9 +49,21 @@ int ossl_digest_rsa_sign_get_md_nid(OSSL_LIB_CTX *ctx, const EVP_MD *md,
  
      ldsigs_allowed = ossl_ctx_legacy_digest_signatures_allowed(ctx, 0);
      mdnid = ossl_digest_get_approved_nid_with_sha1(ctx, md, sha1_allowed || ldsigs_allowed);
@@ -149,14 +149,16 @@ index 2ca7a59..99e8a56 100644
 +    //     DTRACE_PROBE1(libcrypto, fedora_ossl_digest_rsa_sign_get_md_nid_1, mdnid);
      if (mdnid == NID_undef)
          mdnid = ossl_digest_md_to_nid(md, name_to_nid, OSSL_NELEM(name_to_nid));
--    if (mdnid == NID_md5_sha1 && !ldsigs_allowed)
-+    if (mdnid == NID_md5_sha1) {
-+    // AZL3: Don't want to take a dependency on sdt
-+        // if (ldsigs_allowed)
-+        //     DTRACE_PROBE1(libcrypto, fedora_ossl_digest_rsa_sign_get_md_nid_2, mdnid);
-+        // else
+     if (mdnid == NID_md5_sha1 && !ldsigs_allowed)
          mdnid = -1;
-+    }
++    // AZL3: Don't want to take a dependency on sdt, so leaving the above if
++    //       that handles md5 and ldsigs_allowed.
++    // if (mdnid == NID_md5_sha1) {
++    //     if (ldsigs_allowed)
++    //         DTRACE_PROBE1(libcrypto, fedora_ossl_digest_rsa_sign_get_md_nid_2, mdnid);
++    //     else
++    //         mdnid = -1;
++    // }
      return mdnid;
  }
 -- 

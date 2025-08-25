@@ -38,7 +38,7 @@ print(string.sub(hash, 0, 16))
 Summary: Utilities from the general purpose cryptography library with TLS implementation
 Name: openssl-fips-bootstrap
 Version: 3.1.2
-Release: 5000000%{?dist}
+Release: 6000000%{?dist}
 # Epoch: 1
 Source: openssl-%{version}.tar.gz
 Source2: Makefile.certificate
@@ -346,16 +346,13 @@ for i in libcrypto.pc libssl.pc openssl.pc ; do
 done
 
 %check
-# TOBIASB: Disable testing for iteration speed.
-exit 0
-# Verify that what was compiled actually works.
-
-# Hack - either enable SCTP AUTH chunks in kernel or disable sctp for check
-(sysctl net.sctp.addip_enable=1 && sysctl net.sctp.auth_enable=1) || \
-(echo 'Failed to enable SCTP AUTH chunks, disabling SCTP for tests...' &&
- sed '/"msan" => "default",/a\ \ "sctp" => "default",' configdata.pm > configdata.pm.new && \
- touch -r configdata.pm configdata.pm.new && \
- mv -f configdata.pm.new configdata.pm)
+# AZL3: We don't use sctp.
+# # Hack - either enable SCTP AUTH chunks in kernel or disable sctp for check
+# (sysctl net.sctp.addip_enable=1 && sysctl net.sctp.auth_enable=1) || \
+# (echo 'Failed to enable SCTP AUTH chunks, disabling SCTP for tests...' &&
+#  sed '/"msan" => "default",/a\ \ "sctp" => "default",' configdata.pm > configdata.pm.new && \
+#  touch -r configdata.pm configdata.pm.new && \
+#  mv -f configdata.pm.new configdata.pm)
 
 # We must revert patch4 before tests otherwise they will fail
 patch -p1 -R < %{PATCH4}
