@@ -38,7 +38,7 @@ print(string.sub(hash, 0, 16))
 Summary: Utilities from the general purpose cryptography library with TLS implementation
 Name: openssl-fips-bootstrap
 Version: 3.1.2
-Release: 6000000%{?dist}
+Release: 6000001%{?dist}
 # Epoch: 1
 Source: openssl-%{version}.tar.gz
 Source2: Makefile.certificate

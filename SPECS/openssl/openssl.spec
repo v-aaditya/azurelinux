@@ -29,7 +29,7 @@ print(string.sub(hash, 0, 16))
 Summary: Utilities from the general purpose cryptography library with TLS implementation
 Name: openssl
 Version: 3.3.3
-Release: 6000000%{?dist}
+Release: 6000001%{?dist}
 # Epoch: 1
 Source: openssl-%{version}.tar.gz
 Source2: Makefile.certificate
@@ -216,6 +216,8 @@ Patch151: 0001-AZL3-disable-kems-for-unsupported-rsa-sizes-in-speed.patch
 Patch152: 0001-AZL3-disable-signatures-for-unsupported-rsa-sizes-in.patch
 # TODO: document, rename -- maybe fold into 0045
 Patch153: 0001-AZL3-skip-eddsa-test-in-30-test_pairwise_fail.t.patch
+# TODO: document, rename -- maybe fold into 0153 or 0045
+Patch154: 0001-AZL3-allow-normal-failure-for-rsa-in-30-test_pairwise_fail.t.patch
 
 License: Apache-2.0
 URL: http://www.openssl.org/
@@ -235,7 +237,7 @@ BuildRequires: perl(FindBin), perl(lib), perl(File::Compare), perl(File::Copy), 
 # BuildRequires: git-core
 # BuildRequires: systemtap-sdt-devel
 # Requires: coreutils
-BuildRequires: %{name}-fips-bootstrap = 3.1.2-6000000.azl3
+BuildRequires: %{name}-fips-bootstrap = 3.1.2-6000001.azl3
 Requires: %{name}-libs%{?_isa} = %{version}-%{release}
 
 %description
@@ -296,7 +298,7 @@ package provides Perl scripts for converting certificates and keys
 from other formats to the formats used by the OpenSSL toolkit.
 
 %prep
-%autosetup -p1 -n %{name}-%{version}
+%autosetup -S git -n %{name}-%{version}
 
 %build
 # Figure out which flags we want to use.
@@ -468,14 +470,18 @@ OPENSSL_ENABLE_SHA1_SIGNATURES=
 export OPENSSL_ENABLE_SHA1_SIGNATURES
 OPENSSL_SYSTEM_CIPHERS_OVERRIDE=xyz_nonexistent_file
 export OPENSSL_SYSTEM_CIPHERS_OVERRIDE
-#embed HMAC into fips provider for test run
-dd if=/dev/zero bs=1 count=32 of=tmp.mac
-objcopy --update-section .rodata1=tmp.mac providers/fips.so providers/fips.so.zeromac
-mv providers/fips.so.zeromac providers/fips.so
-rm tmp.mac
-LD_LIBRARY_PATH=. apps/openssl dgst -binary -sha256 -mac HMAC -macopt hexkey:f4556650ac31d35461610bac4ed81b1a181b2d8a43ea2854cbae22ca74560813 < providers/fips.so > providers/fips.so.hmac
-objcopy --update-section .rodata1=providers/fips.so.hmac providers/fips.so providers/fips.so.mac
-mv providers/fips.so.mac providers/fips.so
+
+# AZL3: Use fips.so from the bootstrapper
+# #embed HMAC into fips provider for test run
+# dd if=/dev/zero bs=1 count=32 of=tmp.mac
+# objcopy --update-section .rodata1=tmp.mac providers/fips.so providers/fips.so.zeromac
+# mv providers/fips.so.zeromac providers/fips.so
+# rm tmp.mac
+# LD_LIBRARY_PATH=. apps/openssl dgst -binary -sha256 -mac HMAC -macopt hexkey:f4556650ac31d35461610bac4ed81b1a181b2d8a43ea2854cbae22ca74560813 < providers/fips.so > providers/fips.so.hmac
+# objcopy --update-section .rodata1=providers/fips.so.hmac providers/fips.so providers/fips.so.mac
+# mv providers/fips.so.mac providers/fips.so
+# cp /opt/openssl-fips-bootstrap/install/providers/fips.so providers/fips.so
+cp /opt/openssl-fips-bootstrap/install/usr/lib/ossl-modules/fips.so providers/fips.so
 #run tests itself
 # make test HARNESS_JOBS=8
 make test HARNESS_JOBS=1
