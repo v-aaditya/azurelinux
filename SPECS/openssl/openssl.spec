@@ -298,7 +298,7 @@ package provides Perl scripts for converting certificates and keys
 from other formats to the formats used by the OpenSSL toolkit.
 
 %prep
-%autosetup -S git -n %{name}-%{version}
+%autosetup -p1 -n %{name}-%{version}
 
 %build
 # Figure out which flags we want to use.
