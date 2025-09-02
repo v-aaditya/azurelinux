@@ -166,6 +166,7 @@ Patch115: 0115-skip-quic-pairwise.patch
 # Patch116: 0116-version-aliasing.patch
 # Add version aliasing due to
 # https://github.com/openssl/openssl/issues/23534
+# TOBIASB: Might take this one out -- it has that API versioning stuff.
 Patch116: 0116-version-aliasing-AZL3.patch
 # AZL3 -- NOT NEEDED -- already in 3.3.3
 # # https://github.com/openssl/openssl/issues/23050
@@ -242,7 +243,7 @@ Requires: %{name}-libs%{?_isa} = %{version}-%{release}
 
 Provides: openssl = %{version}-%{release}
 Conflicts: openssl
-Obsoletes: openssl
+# Obsoletes: openssl
 
 %description
 The OpenSSL toolkit provides support for secure communications between
@@ -264,7 +265,7 @@ Requires: openssl-fips-provider
 %endif
 Provides: openssl-libs = %{version}-%{release}
 Conflicts: openssl-libs
-Obsoletes: openssl-libs
+# Obsoletes: openssl-libs
 # Obsoletes: SymCrypt >= 0.0.0
 # Obsoletes: SymCrypt-OpenSSL >= 0.0.0
 
@@ -279,7 +280,7 @@ Requires: %{name}-libs%{?_isa} = %{version}-%{release}
 Requires: pkgconfig
 Provides: openssl-devel = %{version}-%{release}
 Conflicts: openssl-devel
-Obsoletes: openssl-devel
+# Obsoletes: openssl-devel
 
 %description devel
 OpenSSL is a toolkit for supporting cryptography. The openssl-devel
@@ -292,7 +293,7 @@ Summary:        Libraries for static linking of applications which will use Open
 Requires:       %{name}-devel%{?_isa} = %{version}-%{release}
 Provides:       openssl-static = %{version}-%{release}
 Conflicts:      openssl-static
-Obsoletes:      openssl-static
+# Obsoletes:      openssl-static
 
 %description static
 OpenSSL is a toolkit for supporting cryptography. The openssl-static
@@ -306,7 +307,7 @@ Requires: perl-interpreter
 Requires: %{name}%{?_isa} = %{version}-%{release}
 Provides: openssl-perl = %{version}-%{release}
 Conflicts: openssl-perl
-Obsoletes: openssl-perl
+# Obsoletes: openssl-perl
 
 %description perl
 OpenSSL is a toolkit for supporting cryptography. The openssl-perl
