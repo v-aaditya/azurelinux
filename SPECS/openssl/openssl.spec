@@ -9,7 +9,7 @@
 Summary: Utilities from the general purpose cryptography library with TLS implementation
 Name: openssl
 Version: 3.3.3
-Release: 2%{?dist}
+Release: 1001%{?dist}
 Vendor:         Microsoft Corporation
 Distribution:   Azure Linux
 Source: https://github.com/openssl/openssl/releases/download/openssl-%{version}/openssl-%{version}.tar.gz
