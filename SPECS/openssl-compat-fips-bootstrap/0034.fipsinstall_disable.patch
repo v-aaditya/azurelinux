@@ -312,7 +312,7 @@ index b1768b7f91..b6b00e27d8 100644
 +Please consult Red Hat Enterprise Linux documentation to learn how to correctly
 +enable FIPS mode on Red Hat Enterprise
  
- =head1 COPYRIGHT
+ =head1 HISTORY
  
 diff --git a/doc/man1/openssl.pod b/doc/man1/openssl.pod
 index d9c22a580f..d5ec3b9a6a 100644

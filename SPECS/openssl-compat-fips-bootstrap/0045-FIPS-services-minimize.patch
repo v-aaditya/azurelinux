@@ -1,12 +1,13 @@
-From a9dc983f82cabe29d6b48f3af3e30e26074ce5cf Mon Sep 17 00:00:00 2001
-From: Dmitry Belyavskiy <dbelyavs@redhat.com>
-Date: Mon, 21 Aug 2023 12:55:57 +0200
-Subject: [PATCH 21/48] 0045-FIPS-services-minimize.patch
+From e25b25227043a2b2cf156527c31d7686a4265bf3 Mon Sep 17 00:00:00 2001
+From: rpm-build <rpm-build>
+Date: Wed, 6 Mar 2024 19:17:15 +0100
+Subject: [PATCH 20/49] 0045-FIPS-services-minimize.patch
 
 Patch-name: 0045-FIPS-services-minimize.patch
 Patch-id: 45
 Patch-status: |
-    # Minimize fips services
+    # # Minimize fips services
+From-dist-git-commit: 4334bc837fbc64d14890fdc51679a80770d498ce
 ---
  apps/ecparam.c                                |  7 +++
  apps/req.c                                    |  2 +-
@@ -20,14 +21,14 @@ Patch-status: |
  test/evp_libctx_test.c                        |  9 +++-
  test/recipes/15-test_gendsa.t                 |  2 +-
  test/recipes/20-test_cli_fips.t               |  3 +-
- test/recipes/30-test_evp.t                    | 16 +++----
+ test/recipes/30-test_evp.t                    | 20 ++++-----
  .../30-test_evp_data/evpmac_common.txt        | 22 ++++++++++
  test/recipes/80-test_cms.t                    | 22 +++++-----
  test/recipes/80-test_ssl_old.t                |  2 +-
- 16 files changed, 128 insertions(+), 47 deletions(-)
+ 16 files changed, 128 insertions(+), 51 deletions(-)
 
 diff --git a/apps/ecparam.c b/apps/ecparam.c
-index 9e9ad13683..9c66cf2434 100644
+index 71f93c4ca5..347bf62d5c 100644
 --- a/apps/ecparam.c
 +++ b/apps/ecparam.c
 @@ -79,6 +79,13 @@ static int list_builtin_curves(BIO *out)
@@ -45,10 +46,10 @@ index 9e9ad13683..9c66cf2434 100644
              comment = "CURVE DESCRIPTION NOT AVAILABLE";
          if (sname == NULL)
 diff --git a/apps/req.c b/apps/req.c
-index 23757044ab..5916914978 100644
+index 8995453dca..cb38e6aa64 100644
 --- a/apps/req.c
 +++ b/apps/req.c
-@@ -266,7 +266,7 @@ int req_main(int argc, char **argv)
+@@ -268,7 +268,7 @@ int req_main(int argc, char **argv)
      unsigned long chtype = MBSTRING_ASC, reqflag = 0;
  
  #ifndef OPENSSL_NO_DES
@@ -56,12 +57,12 @@ index 23757044ab..5916914978 100644
 +    cipher = (EVP_CIPHER *)EVP_aes_256_cbc();
  #endif
  
-     prog = opt_init(argc, argv, req_options);
+     opt_set_unknown_name("digest");
 diff --git a/providers/common/capabilities.c b/providers/common/capabilities.c
-index ed37e76969..eb836dfa6a 100644
+index f7234615e4..0d4c0e3388 100644
 --- a/providers/common/capabilities.c
 +++ b/providers/common/capabilities.c
-@@ -186,9 +186,9 @@ static const OSSL_PARAM param_group_list[][10] = {
+@@ -189,9 +189,9 @@ static const OSSL_PARAM param_group_list[][10] = {
      TLS_GROUP_ENTRY("brainpoolP256r1", "brainpoolP256r1", "EC", 25),
      TLS_GROUP_ENTRY("brainpoolP384r1", "brainpoolP384r1", "EC", 26),
      TLS_GROUP_ENTRY("brainpoolP512r1", "brainpoolP512r1", "EC", 27),
@@ -69,18 +70,18 @@ index ed37e76969..eb836dfa6a 100644
      TLS_GROUP_ENTRY("x25519", "X25519", "X25519", 28),
      TLS_GROUP_ENTRY("x448", "X448", "X448", 29),
 +#  endif
- # endif /* OPENSSL_NO_EC */
- # ifndef OPENSSL_NO_DH
-     /* Security bit values for FFDHE groups are as per RFC 7919 */
+ #  ifndef FIPS_MODULE
+     TLS_GROUP_ENTRY("brainpoolP256r1tls13", "brainpoolP256r1", "EC", 30),
+     TLS_GROUP_ENTRY("brainpoolP384r1tls13", "brainpoolP384r1", "EC", 31),
 diff --git a/providers/fips/fipsprov.c b/providers/fips/fipsprov.c
-index 518226dfc6..29438faea8 100644
+index 7ec409710b..ec5bdd5a69 100644
 --- a/providers/fips/fipsprov.c
 +++ b/providers/fips/fipsprov.c
 @@ -199,13 +199,13 @@ static int fips_get_params(void *provctx, OSSL_PARAM params[])
                                                OSSL_LIB_CTX_FIPS_PROV_INDEX);
  
      p = OSSL_PARAM_locate(params, OSSL_PROV_PARAM_NAME);
--    if (p != NULL && !OSSL_PARAM_set_utf8_ptr(p, "OpenSSL FIPS Provider"))
+-    if (p != NULL && !OSSL_PARAM_set_utf8_ptr(p, "OpenSSL FIPS Provider"))asdf
 +    if (p != NULL && !OSSL_PARAM_set_utf8_ptr(p, "Red Hat Enterprise Linux 9 - OpenSSL FIPS Provider"))
          return 0;
      p = OSSL_PARAM_locate(params, OSSL_PROV_PARAM_VERSION);
@@ -131,38 +132,39 @@ index 518226dfc6..29438faea8 100644
      { NULL, NULL, NULL }
  };
  
-@@ -409,8 +412,9 @@ static const OSSL_ALGORITHM fips_keyexch[] = {
- #endif
+@@ -410,8 +413,9 @@ static const OSSL_ALGORITHM fips_keyexch[] = {
  #ifndef OPENSSL_NO_EC
      { PROV_NAMES_ECDH, FIPS_DEFAULT_PROPERTIES, ossl_ecdh_keyexch_functions },
+ # ifndef OPENSSL_NO_ECX
 -    { PROV_NAMES_X25519, FIPS_DEFAULT_PROPERTIES, ossl_x25519_keyexch_functions },
 -    { PROV_NAMES_X448, FIPS_DEFAULT_PROPERTIES, ossl_x448_keyexch_functions },
 +    /* We don't certify Edwards curves in our FIPS provider */
 +    /*{ PROV_NAMES_X25519, FIPS_DEFAULT_PROPERTIES, ossl_x25519_keyexch_functions },
 +    { PROV_NAMES_X448, FIPS_DEFAULT_PROPERTIES, ossl_x448_keyexch_functions },*/
+ # endif
  #endif
      { PROV_NAMES_TLS1_PRF, FIPS_DEFAULT_PROPERTIES,
-       ossl_kdf_tls1_prf_keyexch_functions },
-@@ -420,13 +424,15 @@ static const OSSL_ALGORITHM fips_keyexch[] = {
+@@ -422,14 +426,16 @@ static const OSSL_ALGORITHM fips_keyexch[] = {
  
  static const OSSL_ALGORITHM fips_signature[] = {
  #ifndef OPENSSL_NO_DSA
 -    { PROV_NAMES_DSA, FIPS_DEFAULT_PROPERTIES, ossl_dsa_signature_functions },
 +    /* We don't certify DSA in our FIPS provider */
-+    /* { PROV_NAMES_DSA, FIPS_DEFAULT_PROPERTIES, ossl_dsa_signature_functions }, */
++    /* { PROV_NAMES_DSA, FIPS_DEFAULT_PROPERTIES, ossl_dsa_signature_functions },*/
  #endif
      { PROV_NAMES_RSA, FIPS_DEFAULT_PROPERTIES, ossl_rsa_signature_functions },
  #ifndef OPENSSL_NO_EC
+ # ifndef OPENSSL_NO_ECX
 -    { PROV_NAMES_ED25519, FIPS_UNAPPROVED_PROPERTIES,
 +    /* We don't certify Edwards curves in our FIPS provider */
 +    /* { PROV_NAMES_ED25519, FIPS_UNAPPROVED_PROPERTIES,
        ossl_ed25519_signature_functions },
 -    { PROV_NAMES_ED448, FIPS_UNAPPROVED_PROPERTIES, ossl_ed448_signature_functions },
-+    { PROV_NAMES_ED448, FIPS_UNAPPROVED_PROPERTIES, ossl_ed448_signature_functions }, */
++    { PROV_NAMES_ED448, FIPS_UNAPPROVED_PROPERTIES, ossl_ed448_signature_functions },*/
+ # endif
      { PROV_NAMES_ECDSA, FIPS_DEFAULT_PROPERTIES, ossl_ecdsa_signature_functions },
  #endif
-     { PROV_NAMES_HMAC, FIPS_DEFAULT_PROPERTIES,
-@@ -456,8 +462,9 @@ static const OSSL_ALGORITHM fips_keymgmt[] = {
+@@ -460,8 +466,9 @@ static const OSSL_ALGORITHM fips_keymgmt[] = {
        PROV_DESCS_DHX },
  #endif
  #ifndef OPENSSL_NO_DSA
@@ -174,10 +176,10 @@ index 518226dfc6..29438faea8 100644
  #endif
      { PROV_NAMES_RSA, FIPS_DEFAULT_PROPERTIES, ossl_rsa_keymgmt_functions,
        PROV_DESCS_RSA },
-@@ -466,14 +473,15 @@ static const OSSL_ALGORITHM fips_keymgmt[] = {
- #ifndef OPENSSL_NO_EC
+@@ -471,14 +478,15 @@ static const OSSL_ALGORITHM fips_keymgmt[] = {
      { PROV_NAMES_EC, FIPS_DEFAULT_PROPERTIES, ossl_ec_keymgmt_functions,
        PROV_DESCS_EC },
+ # ifndef OPENSSL_NO_ECX
 -    { PROV_NAMES_X25519, FIPS_DEFAULT_PROPERTIES, ossl_x25519_keymgmt_functions,
 +    /* We don't certify Edwards curves in our FIPS provider */
 +    /* { PROV_NAMES_X25519, FIPS_DEFAULT_PROPERTIES, ossl_x25519_keymgmt_functions,
@@ -189,9 +191,9 @@ index 518226dfc6..29438faea8 100644
      { PROV_NAMES_ED448, FIPS_UNAPPROVED_PROPERTIES, ossl_ed448_keymgmt_functions,
 -      PROV_DESCS_ED448 },
 +      PROV_DESCS_ED448 }, */
+ # endif
  #endif
      { PROV_NAMES_TLS1_PRF, FIPS_DEFAULT_PROPERTIES, ossl_kdf_keymgmt_functions,
-       PROV_DESCS_TLS1_PRF_SIGN },
 diff --git a/providers/fips/self_test_data.inc b/providers/fips/self_test_data.inc
 index 2057378d3d..4b80bb70b9 100644
 --- a/providers/fips/self_test_data.inc
@@ -249,10 +251,10 @@ index 2057378d3d..4b80bb70b9 100644
  
  static const ST_KAT_ASYM_CIPHER st_kat_asym_cipher_tests[] = {
 diff --git a/providers/implementations/signature/rsa_sig.c b/providers/implementations/signature/rsa_sig.c
-index d4261e8f7d..2a5504d104 100644
+index 22d93ead53..c1405f47ea 100644
 --- a/providers/implementations/signature/rsa_sig.c
 +++ b/providers/implementations/signature/rsa_sig.c
-@@ -689,6 +689,19 @@ static int rsa_verify_recover(void *vprsactx,
+@@ -686,6 +686,19 @@ static int rsa_verify_recover(void *vprsactx,
  {
      PROV_RSA_CTX *prsactx = (PROV_RSA_CTX *)vprsactx;
      int ret;
@@ -272,7 +274,7 @@ index d4261e8f7d..2a5504d104 100644
  
      if (!ossl_prov_is_running())
          return 0;
-@@ -777,6 +790,19 @@ static int rsa_verify(void *vprsactx, const unsigned char *sig, size_t siglen,
+@@ -774,6 +787,19 @@ static int rsa_verify(void *vprsactx, const unsigned char *sig, size_t siglen,
  {
      PROV_RSA_CTX *prsactx = (PROV_RSA_CTX *)vprsactx;
      size_t rslen;
@@ -293,7 +295,7 @@ index d4261e8f7d..2a5504d104 100644
      if (!ossl_prov_is_running())
          return 0;
 diff --git a/ssl/ssl_ciph.c b/ssl/ssl_ciph.c
-index a5e60e8839..f9af07d12b 100644
+index 33c23efb0d..113c204716 100644
 --- a/ssl/ssl_ciph.c
 +++ b/ssl/ssl_ciph.c
 @@ -356,6 +356,9 @@ int ssl_load_ciphers(SSL_CTX *ctx)
@@ -305,12 +307,12 @@ index a5e60e8839..f9af07d12b 100644
 +
      /*
       * We ignore any errors from the fetches below. They are expected to fail
-      * if theose algorithms are not available.
+      * if these algorithms are not available.
 diff --git a/test/acvp_test.c b/test/acvp_test.c
-index fee880d441..13d7a0ea8b 100644
+index 45509095af..4a67519bb4 100644
 --- a/test/acvp_test.c
 +++ b/test/acvp_test.c
-@@ -1476,6 +1476,7 @@ int setup_tests(void)
+@@ -1478,6 +1478,7 @@ int setup_tests(void)
                    OSSL_NELEM(dh_safe_prime_keyver_data));
  #endif /* OPENSSL_NO_DH */
  
@@ -318,7 +320,7 @@ index fee880d441..13d7a0ea8b 100644
  #ifndef OPENSSL_NO_DSA
      ADD_ALL_TESTS(dsa_keygen_test, OSSL_NELEM(dsa_keygen_data));
      ADD_ALL_TESTS(dsa_paramgen_test, OSSL_NELEM(dsa_paramgen_data));
-@@ -1483,6 +1484,7 @@ int setup_tests(void)
+@@ -1485,6 +1486,7 @@ int setup_tests(void)
      ADD_ALL_TESTS(dsa_siggen_test, OSSL_NELEM(dsa_siggen_data));
      ADD_ALL_TESTS(dsa_sigver_test, OSSL_NELEM(dsa_sigver_data));
  #endif /* OPENSSL_NO_DSA */
@@ -327,10 +329,10 @@ index fee880d441..13d7a0ea8b 100644
  #ifndef OPENSSL_NO_EC
      ADD_ALL_TESTS(ecdsa_keygen_test, OSSL_NELEM(ecdsa_keygen_data));
 diff --git a/test/endecode_test.c b/test/endecode_test.c
-index 9a437d8c64..53385028fc 100644
+index b53b7b715b..885e49a47c 100644
 --- a/test/endecode_test.c
 +++ b/test/endecode_test.c
-@@ -1407,6 +1407,7 @@ int setup_tests(void)
+@@ -1419,6 +1419,7 @@ int setup_tests(void)
           * so no legacy tests.
           */
  #endif
@@ -338,7 +340,7 @@ index 9a437d8c64..53385028fc 100644
  #ifndef OPENSSL_NO_DSA
          ADD_TEST_SUITE(DSA);
          ADD_TEST_SUITE_PARAMS(DSA);
-@@ -1417,6 +1418,7 @@ int setup_tests(void)
+@@ -1429,6 +1430,7 @@ int setup_tests(void)
          ADD_TEST_SUITE_PROTECTED_PVK(DSA);
  # endif
  #endif
@@ -346,9 +348,9 @@ index 9a437d8c64..53385028fc 100644
  #ifndef OPENSSL_NO_EC
          ADD_TEST_SUITE(EC);
          ADD_TEST_SUITE_PARAMS(EC);
-@@ -1431,10 +1433,12 @@ int setup_tests(void)
-         ADD_TEST_SUITE(ECExplicitTri2G);
-         ADD_TEST_SUITE_LEGACY(ECExplicitTri2G);
+@@ -1443,10 +1445,12 @@ int setup_tests(void)
+             ADD_TEST_SUITE(SM2);
+         }
  # endif
 +    if (is_fips == 0) {
          ADD_TEST_SUITE(ED25519);
@@ -394,7 +396,7 @@ index 2448c35a14..a7913cda4c 100644
      return 1;
  }
 diff --git a/test/recipes/15-test_gendsa.t b/test/recipes/15-test_gendsa.t
-index b495b08bda..69bd299521 100644
+index 4bc460784b..93052eb3e7 100644
 --- a/test/recipes/15-test_gendsa.t
 +++ b/test/recipes/15-test_gendsa.t
 @@ -24,7 +24,7 @@ use lib bldtop_dir('.');
@@ -407,10 +409,10 @@ index b495b08bda..69bd299521 100644
  plan tests =>
      ($no_fips ? 0 : 2)          # FIPS related tests
 diff --git a/test/recipes/20-test_cli_fips.t b/test/recipes/20-test_cli_fips.t
-index 6d3c5ba1bb..2ba47b5fca 100644
+index d4b4d4ca51..031814e8ff 100644
 --- a/test/recipes/20-test_cli_fips.t
 +++ b/test/recipes/20-test_cli_fips.t
-@@ -273,8 +273,7 @@ SKIP: {
+@@ -278,8 +278,7 @@ SKIP: {
  }
  
  SKIP : {
@@ -421,10 +423,10 @@ index 6d3c5ba1bb..2ba47b5fca 100644
      subtest DSA => sub {
          my $testtext_prefix = 'DSA';
 diff --git a/test/recipes/30-test_evp.t b/test/recipes/30-test_evp.t
-index 9d7040ced2..f8beb538d4 100644
+index eddca5c58e..36a192d041 100644
 --- a/test/recipes/30-test_evp.t
 +++ b/test/recipes/30-test_evp.t
-@@ -42,10 +42,8 @@ my @files = qw(
+@@ -46,10 +46,8 @@ my @files = qw(
                  evpciph_aes_cts.txt
                  evpciph_aes_wrap.txt
                  evpciph_aes_stitched.txt
@@ -435,7 +437,7 @@ index 9d7040ced2..f8beb538d4 100644
                  evpkdf_pbkdf1.txt
                  evpkdf_pbkdf2.txt
                  evpkdf_ss.txt
-@@ -65,12 +63,6 @@ push @files, qw(
+@@ -69,15 +67,6 @@ push @files, qw(
                  evppkey_ffdhe.txt
                  evppkey_dh.txt
                 ) unless $no_dh;
@@ -444,11 +446,14 @@ index 9d7040ced2..f8beb538d4 100644
 -                evpmac_cmac_des.txt
 -               ) unless $no_des;
 -push @files, qw(evppkey_dsa.txt) unless $no_dsa;
--push @files, qw(evppkey_ecx.txt) unless $no_ec;
+-push @files, qw(
+-                evppkey_ecx.txt
+-                evppkey_mismatch_ecx.txt
+-               ) unless $no_ecx;
  push @files, qw(
                  evppkey_ecc.txt
                  evppkey_ecdh.txt
-@@ -91,6 +83,7 @@ my @defltfiles = qw(
+@@ -97,6 +86,7 @@ my @defltfiles = qw(
                       evpciph_cast5.txt
                       evpciph_chacha.txt
                       evpciph_des.txt
@@ -456,7 +461,7 @@ index 9d7040ced2..f8beb538d4 100644
                       evpciph_idea.txt
                       evpciph_rc2.txt
                       evpciph_rc4.txt
-@@ -114,10 +107,17 @@ my @defltfiles = qw(
+@@ -121,13 +111,19 @@ my @defltfiles = qw(
                       evpmd_whirlpool.txt
                       evppbe_scrypt.txt
                       evppbe_pkcs12.txt
@@ -472,13 +477,16 @@ index 9d7040ced2..f8beb538d4 100644
 +                evpmac_cmac_des.txt
 +               ) unless $no_des;
  push @defltfiles, qw(evppkey_brainpool.txt) unless $no_ec;
+ push @defltfiles, qw(evppkey_ecdsa_rfc6979.txt) unless $no_ec;
+-push @defltfiles, qw(evppkey_dsa_rfc6979.txt) unless $no_dsa;
  push @defltfiles, qw(evppkey_sm2.txt) unless $no_sm2;
- 
+ push @defltfiles, qw(evpciph_aes_gcm_siv.txt) unless $no_siv;
+ push @defltfiles, qw(evpciph_aes_siv.txt) unless $no_siv;
 diff --git a/test/recipes/30-test_evp_data/evpmac_common.txt b/test/recipes/30-test_evp_data/evpmac_common.txt
-index 93195df97c..315413cd9b 100644
+index e47023aae6..96a8febeef 100644
 --- a/test/recipes/30-test_evp_data/evpmac_common.txt
 +++ b/test/recipes/30-test_evp_data/evpmac_common.txt
-@@ -340,6 +340,7 @@ IV = 7AE8E2CA4EC500012E58495C
+@@ -363,6 +363,7 @@ IV = 7AE8E2CA4EC500012E58495C
  Input = 68F2E77696CE7AE8E2CA4EC588E541002E58495C08000F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F404142434445464748494A4B4C4D0007
  Result = MAC_INIT_ERROR
  
@@ -486,7 +494,7 @@ index 93195df97c..315413cd9b 100644
  Title = KMAC Tests (From NIST)
  MAC = KMAC128
  Key = 404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F
-@@ -350,12 +351,14 @@ Ctrl = xof:0
+@@ -373,12 +374,14 @@ Ctrl = xof:0
  OutputSize = 32
  BlockSize = 168
  
@@ -501,7 +509,7 @@ index 93195df97c..315413cd9b 100644
  MAC = KMAC128
  Key = 404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F
  Input = 000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F606162636465666768696A6B6C6D6E6F707172737475767778797A7B7C7D7E7F808182838485868788898A8B8C8D8E8F909192939495969798999A9B9C9D9E9FA0A1A2A3A4A5A6A7A8A9AAABACADAEAFB0B1B2B3B4B5B6B7B8B9BABBBCBDBEBFC0C1C2C3C4C5C6C7
-@@ -363,6 +366,7 @@ Custom = "My Tagged Application"
+@@ -386,6 +389,7 @@ Custom = "My Tagged Application"
  Output = 1F5B4E6CCA02209E0DCB5CA635B89A15E271ECC760071DFD805FAA38F9729230
  Ctrl = size:32
  
@@ -509,7 +517,7 @@ index 93195df97c..315413cd9b 100644
  MAC = KMAC256
  Key = 404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F
  Input = 00010203
-@@ -371,12 +375,14 @@ Output = 20C570C31346F703C9AC36C61C03CB64C3970D0CFC787E9B79599D273A68D2F7F69D4CC
+@@ -394,12 +398,14 @@ Output = 20C570C31346F703C9AC36C61C03CB64C3970D0CFC787E9B79599D273A68D2F7F69D4CC
  OutputSize = 64
  BlockSize = 136
  
@@ -524,7 +532,7 @@ index 93195df97c..315413cd9b 100644
  MAC = KMAC256
  Key = 404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F
  Input = 000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F606162636465666768696A6B6C6D6E6F707172737475767778797A7B7C7D7E7F808182838485868788898A8B8C8D8E8F909192939495969798999A9B9C9D9E9FA0A1A2A3A4A5A6A7A8A9AAABACADAEAFB0B1B2B3B4B5B6B7B8B9BABBBCBDBEBFC0C1C2C3C4C5C6C7
-@@ -386,12 +392,14 @@ Ctrl = size:64
+@@ -409,12 +415,14 @@ Ctrl = size:64
  
  Title = KMAC XOF Tests (From NIST)
  
@@ -539,7 +547,7 @@ index 93195df97c..315413cd9b 100644
  MAC = KMAC128
  Key = 404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F
  Input = 00010203
-@@ -399,6 +407,7 @@ Custom = "My Tagged Application"
+@@ -422,6 +430,7 @@ Custom = "My Tagged Application"
  Output = 31A44527B4ED9F5C6101D11DE6D26F0620AA5C341DEF41299657FE9DF1A3B16C
  XOF = 1
  
@@ -547,7 +555,7 @@ index 93195df97c..315413cd9b 100644
  MAC = KMAC128
  Key = 404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F
  Input = 000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F606162636465666768696A6B6C6D6E6F707172737475767778797A7B7C7D7E7F808182838485868788898A8B8C8D8E8F909192939495969798999A9B9C9D9E9FA0A1A2A3A4A5A6A7A8A9AAABACADAEAFB0B1B2B3B4B5B6B7B8B9BABBBCBDBEBFC0C1C2C3C4C5C6C7
-@@ -407,6 +416,7 @@ Output = 47026C7CD793084AA0283C253EF658490C0DB61438B8326FE9BDDF281B83AE0F
+@@ -430,6 +439,7 @@ Output = 47026C7CD793084AA0283C253EF658490C0DB61438B8326FE9BDDF281B83AE0F
  XOF = 1
  Ctrl = size:32
  
@@ -555,7 +563,7 @@ index 93195df97c..315413cd9b 100644
  MAC = KMAC256
  Key = 404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F
  Input = 00010203
-@@ -414,6 +424,7 @@ Custom = "My Tagged Application"
+@@ -437,6 +447,7 @@ Custom = "My Tagged Application"
  Output = 1755133F1534752AAD0748F2C706FB5C784512CAB835CD15676B16C0C6647FA96FAA7AF634A0BF8FF6DF39374FA00FAD9A39E322A7C92065A64EB1FB0801EB2B
  XOF = 1
  
@@ -563,7 +571,7 @@ index 93195df97c..315413cd9b 100644
  MAC = KMAC256
  Key = 404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F
  Input = 000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F606162636465666768696A6B6C6D6E6F707172737475767778797A7B7C7D7E7F808182838485868788898A8B8C8D8E8F909192939495969798999A9B9C9D9E9FA0A1A2A3A4A5A6A7A8A9AAABACADAEAFB0B1B2B3B4B5B6B7B8B9BABBBCBDBEBFC0C1C2C3C4C5C6C7
-@@ -421,6 +432,7 @@ Custom = ""
+@@ -444,6 +455,7 @@ Custom = ""
  Output = FF7B171F1E8A2B24683EED37830EE797538BA8DC563F6DA1E667391A75EDC02CA633079F81CE12A25F45615EC89972031D18337331D24CEB8F8CA8E6A19FD98B
  XOF = 1
  
@@ -571,7 +579,7 @@ index 93195df97c..315413cd9b 100644
  MAC = KMAC256
  Key = 404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F
  Input = 000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F606162636465666768696A6B6C6D6E6F707172737475767778797A7B7C7D7E7F808182838485868788898A8B8C8D8E8F909192939495969798999A9B9C9D9E9FA0A1A2A3A4A5A6A7A8A9AAABACADAEAFB0B1B2B3B4B5B6B7B8B9BABBBCBDBEBFC0C1C2C3C4C5C6C7
-@@ -431,6 +443,7 @@ XOF = 1
+@@ -454,6 +466,7 @@ XOF = 1
  
  Title = KMAC long customisation string (from NIST ACVP)
  
@@ -579,7 +587,7 @@ index 93195df97c..315413cd9b 100644
  MAC = KMAC256
  Key = 9743DBF93102FAF11227B154B8ACD16CF142671F7AA16C559A393A38B4CEF461ED29A6A328D7379C99718790E38B54CA25E9E831CBEA463EE704D1689F94629AB795DF0C77F756DA743309C0E054596BA2D9CC1768ACF7CD351D9A7EB1ABD0A3
  Input = BA63AC9C711F143CCE7FF92D0322649D1BE437D805FD225C0A2879A008373EC3BCCDB09971FAD2BCE5F4347AF7E5238EF01A90ED34193D6AFC1D
-@@ -441,12 +454,14 @@ XOF = 1
+@@ -464,12 +477,14 @@ XOF = 1
  
  Title = KMAC XOF Tests via ctrl (From NIST)
  
@@ -594,7 +602,7 @@ index 93195df97c..315413cd9b 100644
  MAC = KMAC128
  Key = 404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F
  Input = 00010203
-@@ -454,6 +469,7 @@ Custom = "My Tagged Application"
+@@ -477,6 +492,7 @@ Custom = "My Tagged Application"
  Output = 31A44527B4ED9F5C6101D11DE6D26F0620AA5C341DEF41299657FE9DF1A3B16C
  Ctrl = xof:1
  
@@ -602,7 +610,7 @@ index 93195df97c..315413cd9b 100644
  MAC = KMAC128
  Key = 404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F
  Input = 000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F606162636465666768696A6B6C6D6E6F707172737475767778797A7B7C7D7E7F808182838485868788898A8B8C8D8E8F909192939495969798999A9B9C9D9E9FA0A1A2A3A4A5A6A7A8A9AAABACADAEAFB0B1B2B3B4B5B6B7B8B9BABBBCBDBEBFC0C1C2C3C4C5C6C7
-@@ -462,6 +478,7 @@ Output = 47026C7CD793084AA0283C253EF658490C0DB61438B8326FE9BDDF281B83AE0F
+@@ -485,6 +501,7 @@ Output = 47026C7CD793084AA0283C253EF658490C0DB61438B8326FE9BDDF281B83AE0F
  Ctrl = xof:1
  Ctrl = size:32
  
@@ -610,7 +618,7 @@ index 93195df97c..315413cd9b 100644
  MAC = KMAC256
  Key = 404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F
  Input = 00010203
-@@ -469,6 +486,7 @@ Custom = "My Tagged Application"
+@@ -492,6 +509,7 @@ Custom = "My Tagged Application"
  Output = 1755133F1534752AAD0748F2C706FB5C784512CAB835CD15676B16C0C6647FA96FAA7AF634A0BF8FF6DF39374FA00FAD9A39E322A7C92065A64EB1FB0801EB2B
  Ctrl = xof:1
  
@@ -618,7 +626,7 @@ index 93195df97c..315413cd9b 100644
  MAC = KMAC256
  Key = 404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F
  Input = 000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F606162636465666768696A6B6C6D6E6F707172737475767778797A7B7C7D7E7F808182838485868788898A8B8C8D8E8F909192939495969798999A9B9C9D9E9FA0A1A2A3A4A5A6A7A8A9AAABACADAEAFB0B1B2B3B4B5B6B7B8B9BABBBCBDBEBFC0C1C2C3C4C5C6C7
-@@ -476,6 +494,7 @@ Custom = ""
+@@ -499,6 +517,7 @@ Custom = ""
  Output = FF7B171F1E8A2B24683EED37830EE797538BA8DC563F6DA1E667391A75EDC02CA633079F81CE12A25F45615EC89972031D18337331D24CEB8F8CA8E6A19FD98B
  Ctrl = xof:1
  
@@ -626,7 +634,7 @@ index 93195df97c..315413cd9b 100644
  MAC = KMAC256
  Key = 404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F
  Input = 000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F606162636465666768696A6B6C6D6E6F707172737475767778797A7B7C7D7E7F808182838485868788898A8B8C8D8E8F909192939495969798999A9B9C9D9E9FA0A1A2A3A4A5A6A7A8A9AAABACADAEAFB0B1B2B3B4B5B6B7B8B9BABBBCBDBEBFC0C1C2C3C4C5C6C7
-@@ -486,6 +505,7 @@ Ctrl = xof:1
+@@ -509,6 +528,7 @@ Ctrl = xof:1
  
  Title = KMAC long customisation string via ctrl (from NIST ACVP)
  
@@ -634,7 +642,7 @@ index 93195df97c..315413cd9b 100644
  MAC = KMAC256
  Key = 9743DBF93102FAF11227B154B8ACD16CF142671F7AA16C559A393A38B4CEF461ED29A6A328D7379C99718790E38B54CA25E9E831CBEA463EE704D1689F94629AB795DF0C77F756DA743309C0E054596BA2D9CC1768ACF7CD351D9A7EB1ABD0A3
  Input = BA63AC9C711F143CCE7FF92D0322649D1BE437D805FD225C0A2879A008373EC3BCCDB09971FAD2BCE5F4347AF7E5238EF01A90ED34193D6AFC1D
-@@ -496,6 +516,7 @@ Ctrl = xof:1
+@@ -519,6 +539,7 @@ Ctrl = xof:1
  
  Title = KMAC long customisation string negative test
  
@@ -642,7 +650,7 @@ index 93195df97c..315413cd9b 100644
  MAC = KMAC128
  Key = 404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F
  Input = 000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F606162636465666768696A6B6C6D6E6F707172737475767778797A7B7C7D7E7F808182838485868788898A8B8C8D8E8F909192939495969798999A9B9C9D9E9FA0A1A2A3A4A5A6A7A8A9AAABACADAEAFB0B1B2B3B4B5B6B7B8B9BABBBCBDBEBFC0C1C2C3C4C5C6C7
-@@ -504,6 +525,7 @@ Result = MAC_INIT_ERROR
+@@ -527,6 +548,7 @@ Result = MAC_INIT_ERROR
  
  Title = KMAC output is too large
  
@@ -651,7 +659,7 @@ index 93195df97c..315413cd9b 100644
  Key = 404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F
  Input = 000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F606162636465666768696A6B6C6D6E6F707172737475767778797A7B7C7D7E7F808182838485868788898A8B8C8D8E8F909192939495969798999A9B9C9D9E9FA0A1A2A3A4A5A6A7A8A9AAABACADAEAFB0B1B2B3B4B5B6B7B8B9BABBBCBDBEBFC0C1C2C3C4C5C6C7
 diff --git a/test/recipes/80-test_cms.t b/test/recipes/80-test_cms.t
-index 40dd585c18..cbec426137 100644
+index 6a9792128b..4e368c730b 100644
 --- a/test/recipes/80-test_cms.t
 +++ b/test/recipes/80-test_cms.t
 @@ -96,7 +96,7 @@ my @smime_pkcs7_tests = (
@@ -726,7 +734,7 @@ index 40dd585c18..cbec426137 100644
        [ "{cmd1}", @prov, "-sign", "-in", $smcont,
          "-signer", $smrsa1,
          "-signer", catfile($smdir, "smrsa2.pem"),
-@@ -248,7 +248,7 @@ my @smime_pkcs7_tests = (
+@@ -250,7 +250,7 @@ my @smime_pkcs7_tests = (
  
  my @smime_cms_tests = (
  
@@ -735,7 +743,7 @@ index 40dd585c18..cbec426137 100644
        [ "{cmd1}", @prov, "-sign", "-in", $smcont, "-outform", "DER",
          "-nodetach", "-keyid",
          "-signer", $smrsa1,
-@@ -261,7 +261,7 @@ my @smime_cms_tests = (
+@@ -263,7 +263,7 @@ my @smime_cms_tests = (
        \&final_compare
      ],
  
@@ -744,7 +752,7 @@ index 40dd585c18..cbec426137 100644
        [ "{cmd1}", @prov, "-sign", "-in", $smcont, "-outform", "PEM", "-nodetach",
          "-signer", $smrsa1,
          "-signer", catfile($smdir, "smrsa2.pem"),
-@@ -371,7 +371,7 @@ my @smime_cms_tests = (
+@@ -373,7 +373,7 @@ my @smime_cms_tests = (
        \&final_compare
      ],
  
@@ -767,5 +775,5 @@ index 50b74a1e29..e2dcb68fb5 100644
          }
  
 -- 
-2.41.0
+2.44.0
 

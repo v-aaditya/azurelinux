@@ -1,33 +1,24 @@
-From 98ee6faef3da1439c04f11cd2796132d27d1e607 Mon Sep 17 00:00:00 2001
-From: Dmitry Belyavskiy <dbelyavs@redhat.com>
-Date: Mon, 21 Aug 2023 15:58:07 +0200
-Subject: [PATCH 41/48] 0088-signature-Add-indicator-for-PSS-salt-length.patch
+From 9134fadd6544be82f96e3d5ce9c1f489de6a1745 Mon Sep 17 00:00:00 2001
+From: rpm-build <rpm-build>
+Date: Wed, 6 Mar 2024 19:17:17 +0100
+Subject: [PATCH 38/49] 0088-signature-Add-indicator-for-PSS-salt-length.patch
 
 Patch-name: 0088-signature-Add-indicator-for-PSS-salt-length.patch
 Patch-id: 88
+Patch-status: |
+    # 0088-signature-Add-indicator-for-PSS-salt-length.patch
+From-dist-git-commit: 4334bc837fbc64d14890fdc51679a80770d498ce
 ---
- include/openssl/core_names.h                  |  1 +
  include/openssl/evp.h                         |  4 ++++
- providers/implementations/signature/rsa_sig.c | 21 +++++++++++++++++++
- 3 files changed, 26 insertions(+)
+ providers/implementations/signature/rsa_sig.c | 21 +++++++++++++++++
+ util/perl/OpenSSL/paramnames.pm               | 23 ++++++++++---------
+ 3 files changed, 37 insertions(+), 11 deletions(-)
 
-diff --git a/include/openssl/core_names.h b/include/openssl/core_names.h
-index 1d1da4d3ca..48af87e236 100644
---- a/include/openssl/core_names.h
-+++ b/include/openssl/core_names.h
-@@ -458,6 +458,7 @@ extern "C" {
- #define OSSL_SIGNATURE_PARAM_MGF1_PROPERTIES    \
-     OSSL_PKEY_PARAM_MGF1_PROPERTIES
- #define OSSL_SIGNATURE_PARAM_DIGEST_SIZE        OSSL_PKEY_PARAM_DIGEST_SIZE
-+#define OSSL_SIGNATURE_PARAM_REDHAT_FIPS_INDICATOR "redhat-fips-indicator"
- 
- /* Asym cipher parameters */
- #define OSSL_ASYM_CIPHER_PARAM_DIGEST                   OSSL_PKEY_PARAM_DIGEST
 diff --git a/include/openssl/evp.h b/include/openssl/evp.h
-index 615857caf5..05f2d0f75a 100644
+index 48d5886d1e..e3fa4a8043 100644
 --- a/include/openssl/evp.h
 +++ b/include/openssl/evp.h
-@@ -799,6 +799,10 @@ __owur int EVP_CipherFinal(EVP_CIPHER_CTX *ctx, unsigned char *outm,
+@@ -804,6 +804,10 @@ __owur int EVP_CipherFinal(EVP_CIPHER_CTX *ctx, unsigned char *outm,
  __owur int EVP_CipherFinal_ex(EVP_CIPHER_CTX *ctx, unsigned char *outm,
                                int *outl);
  
@@ -39,10 +30,10 @@ index 615857caf5..05f2d0f75a 100644
                           EVP_PKEY *pkey);
  __owur int EVP_SignFinal_ex(EVP_MD_CTX *ctx, unsigned char *md, unsigned int *s,
 diff --git a/providers/implementations/signature/rsa_sig.c b/providers/implementations/signature/rsa_sig.c
-index cfaa4841cb..851671cfb1 100644
+index b0f32f0b57..1e56d673ee 100644
 --- a/providers/implementations/signature/rsa_sig.c
 +++ b/providers/implementations/signature/rsa_sig.c
-@@ -1173,6 +1173,24 @@ static int rsa_get_ctx_params(void *vprsactx, OSSL_PARAM *params)
+@@ -1169,6 +1169,24 @@ static int rsa_get_ctx_params(void *vprsactx, OSSL_PARAM *params)
          }
      }
  
@@ -67,7 +58,7 @@ index cfaa4841cb..851671cfb1 100644
      return 1;
  }
  
-@@ -1182,6 +1200,9 @@ static const OSSL_PARAM known_gettable_ctx_params[] = {
+@@ -1178,6 +1196,9 @@ static const OSSL_PARAM known_gettable_ctx_params[] = {
      OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_DIGEST, NULL, 0),
      OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_MGF1_DIGEST, NULL, 0),
      OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_PSS_SALTLEN, NULL, 0),
@@ -77,6 +68,40 @@ index cfaa4841cb..851671cfb1 100644
      OSSL_PARAM_END
  };
  
+diff --git a/util/perl/OpenSSL/paramnames.pm b/util/perl/OpenSSL/paramnames.pm
+index 8b2d430f17..a109e44521 100644
+--- a/util/perl/OpenSSL/paramnames.pm
++++ b/util/perl/OpenSSL/paramnames.pm
+@@ -377,17 +377,18 @@ my %params = (
+     'EXCHANGE_PARAM_KDF_UKM' =>               "kdf-ukm",
+ 
+ # Signature parameters
+-    'SIGNATURE_PARAM_ALGORITHM_ID' =>       "algorithm-id",
+-    'SIGNATURE_PARAM_PAD_MODE' =>           '*PKEY_PARAM_PAD_MODE',
+-    'SIGNATURE_PARAM_DIGEST' =>             '*PKEY_PARAM_DIGEST',
+-    'SIGNATURE_PARAM_PROPERTIES' =>         '*PKEY_PARAM_PROPERTIES',
+-    'SIGNATURE_PARAM_PSS_SALTLEN' =>        "saltlen",
+-    'SIGNATURE_PARAM_MGF1_DIGEST' =>        '*PKEY_PARAM_MGF1_DIGEST',
+-    'SIGNATURE_PARAM_MGF1_PROPERTIES' =>    '*PKEY_PARAM_MGF1_PROPERTIES',
+-    'SIGNATURE_PARAM_DIGEST_SIZE' =>        '*PKEY_PARAM_DIGEST_SIZE',
+-    'SIGNATURE_PARAM_NONCE_TYPE' =>         "nonce-type",
+-    'SIGNATURE_PARAM_INSTANCE' =>           "instance",
+-    'SIGNATURE_PARAM_CONTEXT_STRING' =>     "context-string",
++    'SIGNATURE_PARAM_ALGORITHM_ID' =>          "algorithm-id",
++    'SIGNATURE_PARAM_PAD_MODE' =>              '*PKEY_PARAM_PAD_MODE',
++    'SIGNATURE_PARAM_DIGEST' =>                '*PKEY_PARAM_DIGEST',
++    'SIGNATURE_PARAM_PROPERTIES' =>            '*PKEY_PARAM_PROPERTIES',
++    'SIGNATURE_PARAM_PSS_SALTLEN' =>           "saltlen",
++    'SIGNATURE_PARAM_MGF1_DIGEST' =>           '*PKEY_PARAM_MGF1_DIGEST',
++    'SIGNATURE_PARAM_MGF1_PROPERTIES' =>       '*PKEY_PARAM_MGF1_PROPERTIES',
++    'SIGNATURE_PARAM_DIGEST_SIZE' =>           '*PKEY_PARAM_DIGEST_SIZE',
++    'SIGNATURE_PARAM_REDHAT_FIPS_INDICATOR' => "redhat-fips-indicator",
++    'SIGNATURE_PARAM_NONCE_TYPE' =>            "nonce-type",
++    'SIGNATURE_PARAM_INSTANCE' =>              "instance",
++    'SIGNATURE_PARAM_CONTEXT_STRING' =>        "context-string",
+ 
+ # Asym cipher parameters
+     'ASYM_CIPHER_PARAM_DIGEST' =>                   '*PKEY_PARAM_DIGEST',
 -- 
-2.41.0
+2.44.0
 

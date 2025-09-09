@@ -1,16 +1,47 @@
-From 2000eaead63732669283e6b54c8ef02e268eaeb8 Mon Sep 17 00:00:00 2001
-From: rpm-build <rpm-build>
-Date: Mon, 31 Jul 2023 09:41:29 +0200
-Subject: [PATCH 34/48] 0078-Add-FIPS-indicator-parameter-to-HKDF.patch
+From 2290280617183863eb15425b8925765966723725 Mon Sep 17 00:00:00 2001
+From: Clemens Lang <cllang@redhat.com>
+Date: Thu, 11 Aug 2022 09:27:12 +0200
+Subject: KDF: Add FIPS indicators
 
-Patch-name: 0078-Add-FIPS-indicator-parameter-to-HKDF.patch
-Patch-id: 78
-Patch-status: |
-    # https://bugzilla.redhat.com/show_bug.cgi?id=2114772
-From-dist-git-commit: 9409bc7044cf4b5773639cce20f51399888c45fd
+FIPS requires a number of restrictions on the parameters of the various
+key derivation functions implemented in OpenSSL. The KDFs that use
+digest algorithms usually should not allow SHAKE (due to FIPS 140-3 IG
+C.C). Additionally, some application-specific KDFs have further
+restrictions defined in SP 800-135r1.
+
+Generally, all KDFs shall use a key-derivation key length of at least
+112 bits due to SP 800-131Ar2 section 8. Additionally any use of a KDF
+to generate and output length of less than 112 bits will also set the
+indicator to unapproved.
+
+Add explicit indicators to all KDFs usable in FIPS mode except for
+PBKDF2 (which has its specific FIPS limits already implemented). The
+indicator can be queried using EVP_KDF_CTX_get_params() after setting
+the required parameters and keys for the KDF.
+
+Our FIPS provider implements SHA1, SHA2 (both -256 and -512, and the
+truncated variants -224 and -384) and SHA3 (-256 and -512, and the
+truncated versions -224 and -384), as well as SHAKE-128 and -256.
+
+The SHAKE functions are generally not allowed in KDFs. For the rest, the
+support matrix is:
+
+ KDF         | SHA-1 | SHA-2 | SHA-2 truncated  | SHA-3 | SHA-3 truncated
+==========================================================================
+KBKDF        |   x   |   x   |         x        |   x   |     x
+HKDF         |   x   |   x   |         x        |   x   |     x
+TLS1PRF      |       | SHA-{256,384,512} only   |       |
+SSHKDF       |   x   |   x   |         x        |       |
+SSKDF        |   x   |   x   |         x        |   x   |     x
+X9.63KDF     |       |   x   |         x        |   x   |     x
+X9.42-ASN1   |   x   |   x   |         x        |   x   |     x
+TLS1.3PRF    |       | SHA-{256,384} only       |       |
+
+Signed-off-by: Clemens Lang <cllang@redhat.com>
+Resolves: rhbz#2160733 rhbz#2164763
+Related: rhbz#2114772 rhbz#2141695
 ---
  include/crypto/evp.h                      |   7 ++
- include/openssl/core_names.h              |   1 +
  include/openssl/kdf.h                     |   4 +
  providers/implementations/kdfs/hkdf.c     | 100 +++++++++++++++++++++-
  providers/implementations/kdfs/kbkdf.c    |  82 ++++++++++++++++--
@@ -18,10 +49,11 @@ From-dist-git-commit: 9409bc7044cf4b5773639cce20f51399888c45fd
  providers/implementations/kdfs/sskdf.c    | 100 +++++++++++++++++++++-
  providers/implementations/kdfs/tls1_prf.c |  74 +++++++++++++++-
  providers/implementations/kdfs/x942kdf.c  |  66 +++++++++++++-
+ util/perl/OpenSSL/paramnames.pm           |   1 +
  9 files changed, 487 insertions(+), 22 deletions(-)
 
 diff --git a/include/crypto/evp.h b/include/crypto/evp.h
-index dbbdcccbda..aa07153441 100644
+index e70d8e9e84..76fb990de4 100644
 --- a/include/crypto/evp.h
 +++ b/include/crypto/evp.h
 @@ -219,6 +219,13 @@ struct evp_mac_st {
@@ -38,18 +70,6 @@ index dbbdcccbda..aa07153441 100644
  struct evp_kdf_st {
      OSSL_PROVIDER *prov;
      int name_id;
-diff --git a/include/openssl/core_names.h b/include/openssl/core_names.h
-index c0cce14297..b431b9f871 100644
---- a/include/openssl/core_names.h
-+++ b/include/openssl/core_names.h
-@@ -226,6 +226,7 @@ extern "C" {
- #define OSSL_KDF_PARAM_X942_SUPP_PUBINFO    "supp-pubinfo"
- #define OSSL_KDF_PARAM_X942_SUPP_PRIVINFO   "supp-privinfo"
- #define OSSL_KDF_PARAM_X942_USE_KEYBITS     "use-keybits"
-+#define OSSL_KDF_PARAM_REDHAT_FIPS_INDICATOR "redhat-fips-indicator"
- 
- /* Known KDF names */
- #define OSSL_KDF_NAME_HKDF           "HKDF"
 diff --git a/include/openssl/kdf.h b/include/openssl/kdf.h
 index 0983230a48..86171635ea 100644
 --- a/include/openssl/kdf.h
@@ -66,10 +86,10 @@ index 0983230a48..86171635ea 100644
  #define EVP_KDF_SSHKDF_TYPE_INITIAL_IV_SRV_TO_CLI     66
  #define EVP_KDF_SSHKDF_TYPE_ENCRYPTION_KEY_CLI_TO_SRV 67
 diff --git a/providers/implementations/kdfs/hkdf.c b/providers/implementations/kdfs/hkdf.c
-index 5304baa6c9..f9c77f4236 100644
+index dfa7786bde..f01e40ff5a 100644
 --- a/providers/implementations/kdfs/hkdf.c
 +++ b/providers/implementations/kdfs/hkdf.c
-@@ -43,6 +43,7 @@ static OSSL_FUNC_kdf_settable_ctx_params_fn kdf_hkdf_settable_ctx_params;
+@@ -42,6 +42,7 @@ static OSSL_FUNC_kdf_settable_ctx_params_fn kdf_hkdf_settable_ctx_params;
  static OSSL_FUNC_kdf_set_ctx_params_fn kdf_hkdf_set_ctx_params;
  static OSSL_FUNC_kdf_gettable_ctx_params_fn kdf_hkdf_gettable_ctx_params;
  static OSSL_FUNC_kdf_get_ctx_params_fn kdf_hkdf_get_ctx_params;
@@ -77,7 +97,7 @@ index 5304baa6c9..f9c77f4236 100644
  static OSSL_FUNC_kdf_derive_fn kdf_tls1_3_derive;
  static OSSL_FUNC_kdf_settable_ctx_params_fn kdf_tls1_3_settable_ctx_params;
  static OSSL_FUNC_kdf_set_ctx_params_fn kdf_tls1_3_set_ctx_params;
-@@ -86,6 +87,10 @@ typedef struct {
+@@ -85,6 +86,10 @@ typedef struct {
      size_t data_len;
      unsigned char *info;
      size_t info_len;
@@ -88,7 +108,7 @@ index 5304baa6c9..f9c77f4236 100644
  } KDF_HKDF;
  
  static void *kdf_hkdf_new(void *provctx)
-@@ -201,6 +206,11 @@ static int kdf_hkdf_derive(void *vctx, unsigned char *key, size_t keylen,
+@@ -170,6 +175,11 @@ static int kdf_hkdf_derive(void *vctx, unsigned char *key, size_t keylen,
          return 0;
      }
  
@@ -100,7 +120,7 @@ index 5304baa6c9..f9c77f4236 100644
      switch (ctx->mode) {
      case EVP_KDF_HKDF_MODE_EXTRACT_AND_EXPAND:
      default:
-@@ -363,15 +373,78 @@ static int kdf_hkdf_get_ctx_params(void *vctx, OSSL_PARAM params[])
+@@ -318,22 +318,85 @@ static int kdf_hkdf_get_ctx_params(void
  {
      KDF_HKDF *ctx = (KDF_HKDF *)vctx;
      OSSL_PARAM *p;
@@ -109,15 +129,20 @@ index 5304baa6c9..f9c77f4236 100644
      if ((p = OSSL_PARAM_locate(params, OSSL_KDF_PARAM_SIZE)) != NULL) {
          size_t sz = kdf_hkdf_size(ctx);
  
--        if (sz == 0)
 +        any_valid = 1;
-+
-+        if (sz == 0 || !OSSL_PARAM_set_size_t(p, sz))
+         if (sz == 0)
              return 0;
--        return OSSL_PARAM_set_size_t(p, sz);
+         return OSSL_PARAM_set_size_t(p, sz);
+     }
+     if ((p = OSSL_PARAM_locate(params, OSSL_KDF_PARAM_INFO)) != NULL) {
++        any_valid = 1;
+         if (ctx->info == NULL || ctx->info_len == 0) {
+             p->return_size = 0;
+             return 1;
+         }
+         return OSSL_PARAM_set_octet_string(p, ctx->info, ctx->info_len);
      }
 -    return -2;
-+
 +#ifdef FIPS_MODULE
 +    if ((p = OSSL_PARAM_locate(params, OSSL_KDF_PARAM_REDHAT_FIPS_INDICATOR))
 +            != NULL) {
@@ -182,17 +207,17 @@ index 5304baa6c9..f9c77f4236 100644
  }
  
  static const OSSL_PARAM *kdf_hkdf_gettable_ctx_params(ossl_unused void *ctx,
-@@ -379,6 +452,9 @@ static const OSSL_PARAM *kdf_hkdf_gettable_ctx_params(ossl_unused void *ctx,
- {
+@@ -348,6 +421,9 @@ static const OSSL_PARAM *kdf_hkdf_gettable_ctx_params(ossl_unused void *ctx,
      static const OSSL_PARAM known_gettable_ctx_params[] = {
          OSSL_PARAM_size_t(OSSL_KDF_PARAM_SIZE, NULL),
+         OSSL_PARAM_octet_string(OSSL_KDF_PARAM_INFO, NULL, 0),
 +#ifdef FIPS_MODULE
 +        OSSL_PARAM_int(OSSL_KDF_PARAM_REDHAT_FIPS_INDICATOR, NULL),
 +#endif /* defined(FIPS_MODULE) */
          OSSL_PARAM_END
      };
      return known_gettable_ctx_params;
-@@ -709,6 +785,17 @@ static int prov_tls13_hkdf_generate_secret(OSSL_LIB_CTX *libctx,
+@@ -677,6 +753,17 @@ static int prov_tls13_hkdf_generate_secret(OSSL_LIB_CTX *libctx,
      return ret;
  }
  
@@ -210,7 +235,7 @@ index 5304baa6c9..f9c77f4236 100644
  static int kdf_tls1_3_derive(void *vctx, unsigned char *key, size_t keylen,
                               const OSSL_PARAM params[])
  {
-@@ -724,6 +811,11 @@ static int kdf_tls1_3_derive(void *vctx, unsigned char *key, size_t keylen,
+@@ -692,6 +779,11 @@ static int kdf_tls1_3_derive(void *vctx, unsigned char *key, size_t keylen,
          return 0;
      }
  
@@ -222,7 +247,7 @@ index 5304baa6c9..f9c77f4236 100644
      switch (ctx->mode) {
      default:
          return 0;
-@@ -801,7 +893,7 @@ static const OSSL_PARAM *kdf_tls1_3_settable_ctx_params(ossl_unused void *ctx,
+@@ -769,7 +861,7 @@ static const OSSL_PARAM *kdf_tls1_3_settable_ctx_params(ossl_unused void *ctx,
  }
  
  const OSSL_DISPATCH ossl_kdf_tls1_3_kdf_functions[] = {
@@ -232,7 +257,7 @@ index 5304baa6c9..f9c77f4236 100644
      { OSSL_FUNC_KDF_FREECTX, (void(*)(void))kdf_hkdf_free },
      { OSSL_FUNC_KDF_RESET, (void(*)(void))kdf_hkdf_reset },
 diff --git a/providers/implementations/kdfs/kbkdf.c b/providers/implementations/kdfs/kbkdf.c
-index aa3df15bc7..3f82710061 100644
+index a542f84dfa..6b6dfb94ac 100644
 --- a/providers/implementations/kdfs/kbkdf.c
 +++ b/providers/implementations/kdfs/kbkdf.c
 @@ -59,6 +59,9 @@ typedef struct {
@@ -245,7 +270,7 @@ index aa3df15bc7..3f82710061 100644
      /* Names are lowercased versions of those found in SP800-108. */
      int r;
      unsigned char *ki;
-@@ -72,6 +75,9 @@ typedef struct {
+@@ -73,6 +76,9 @@ typedef struct {
      int use_l;
      int is_kmac;
      int use_separator;
@@ -255,7 +280,7 @@ index aa3df15bc7..3f82710061 100644
  } KBKDF;
  
  /* Definitions needed for typechecking. */
-@@ -143,6 +149,7 @@ static void kbkdf_reset(void *vctx)
+@@ -138,6 +144,7 @@ static void kbkdf_reset(void *vctx)
      void *provctx = ctx->provctx;
  
      EVP_MAC_CTX_free(ctx->ctx_init);
@@ -263,7 +288,7 @@ index aa3df15bc7..3f82710061 100644
      OPENSSL_clear_free(ctx->context, ctx->context_len);
      OPENSSL_clear_free(ctx->label, ctx->label_len);
      OPENSSL_clear_free(ctx->ki, ctx->ki_len);
-@@ -308,6 +315,11 @@ static int kbkdf_derive(void *vctx, unsigned char *key, size_t keylen,
+@@ -240,6 +247,11 @@ static int kbkdf_derive(void *vctx, unsigned char *key, size_t keylen,
          goto done;
      }
  
@@ -275,7 +300,7 @@ index aa3df15bc7..3f82710061 100644
      h = EVP_MAC_CTX_get_mac_size(ctx->ctx_init);
      if (h == 0)
          goto done;
-@@ -381,6 +393,9 @@ static int kbkdf_set_ctx_params(void *vctx, const OSSL_PARAM params[])
+@@ -297,6 +309,9 @@ static int kbkdf_set_ctx_params(void *vctx, const OSSL_PARAM params[])
          }
      }
  
@@ -285,7 +310,7 @@ index aa3df15bc7..3f82710061 100644
      p = OSSL_PARAM_locate_const(params, OSSL_KDF_PARAM_MODE);
      if (p != NULL
          && OPENSSL_strncasecmp("counter", p->data, p->data_size) == 0) {
-@@ -461,20 +476,77 @@ static const OSSL_PARAM *kbkdf_settable_ctx_params(ossl_unused void *ctx,
+@@ -363,20 +378,77 @@ static const OSSL_PARAM *kbkdf_settable_ctx_params(ossl_unused void *ctx,
  static int kbkdf_get_ctx_params(void *vctx, OSSL_PARAM params[])
  {
      OSSL_PARAM *p;
@@ -369,10 +394,10 @@ index aa3df15bc7..3f82710061 100644
  }
  
 diff --git a/providers/implementations/kdfs/sshkdf.c b/providers/implementations/kdfs/sshkdf.c
-index 1afac4e477..389b82b714 100644
+index c592ba72f1..4a52b38266 100644
 --- a/providers/implementations/kdfs/sshkdf.c
 +++ b/providers/implementations/kdfs/sshkdf.c
-@@ -49,6 +49,9 @@ typedef struct {
+@@ -48,6 +48,9 @@ typedef struct {
      char type; /* X */
      unsigned char *session_id;
      size_t session_id_len;
@@ -382,7 +407,7 @@ index 1afac4e477..389b82b714 100644
  } KDF_SSHKDF;
  
  static void *kdf_sshkdf_new(void *provctx)
-@@ -151,6 +154,12 @@ static int kdf_sshkdf_derive(void *vctx, unsigned char *key, size_t keylen,
+@@ -126,6 +129,12 @@ static int kdf_sshkdf_derive(void *vctx, unsigned char *key, size_t keylen,
          ERR_raise(ERR_LIB_PROV, PROV_R_MISSING_TYPE);
          return 0;
      }
@@ -395,7 +420,7 @@ index 1afac4e477..389b82b714 100644
      return SSHKDF(md, ctx->key, ctx->key_len,
                    ctx->xcghash, ctx->xcghash_len,
                    ctx->session_id, ctx->session_id_len,
-@@ -219,10 +228,67 @@ static const OSSL_PARAM *kdf_sshkdf_settable_ctx_params(ossl_unused void *ctx,
+@@ -194,10 +203,67 @@ static const OSSL_PARAM *kdf_sshkdf_settable_ctx_params(ossl_unused void *ctx,
  static int kdf_sshkdf_get_ctx_params(void *vctx, OSSL_PARAM params[])
  {
      OSSL_PARAM *p;
@@ -466,7 +491,7 @@ index 1afac4e477..389b82b714 100644
  }
  
  static const OSSL_PARAM *kdf_sshkdf_gettable_ctx_params(ossl_unused void *ctx,
-@@ -230,6 +296,9 @@ static const OSSL_PARAM *kdf_sshkdf_gettable_ctx_params(ossl_unused void *ctx,
+@@ -205,6 +271,9 @@ static const OSSL_PARAM *kdf_sshkdf_gettable_ctx_params(ossl_unused void *ctx,
  {
      static const OSSL_PARAM known_gettable_ctx_params[] = {
          OSSL_PARAM_size_t(OSSL_KDF_PARAM_SIZE, NULL),
@@ -477,10 +502,10 @@ index 1afac4e477..389b82b714 100644
      };
      return known_gettable_ctx_params;
 diff --git a/providers/implementations/kdfs/sskdf.c b/providers/implementations/kdfs/sskdf.c
-index ecb98de6fd..98fcc583d8 100644
+index eb54972e1c..23865cd70f 100644
 --- a/providers/implementations/kdfs/sskdf.c
 +++ b/providers/implementations/kdfs/sskdf.c
-@@ -63,6 +63,10 @@ typedef struct {
+@@ -64,6 +64,10 @@ typedef struct {
      size_t salt_len;
      size_t out_len; /* optional KMAC parameter */
      int is_kmac;
@@ -499,7 +524,7 @@ index ecb98de6fd..98fcc583d8 100644
  static OSSL_FUNC_kdf_dupctx_fn sskdf_dup;
  static OSSL_FUNC_kdf_freectx_fn sskdf_free;
  static OSSL_FUNC_kdf_reset_fn sskdf_reset;
-@@ -297,6 +302,16 @@ static void *sskdf_new(void *provctx)
+@@ -296,6 +301,16 @@ static void *sskdf_new(void *provctx)
      return ctx;
  }
  
@@ -516,7 +541,7 @@ index ecb98de6fd..98fcc583d8 100644
  static void sskdf_reset(void *vctx)
  {
      KDF_SSKDF *ctx = (KDF_SSKDF *)vctx;
-@@ -392,6 +407,11 @@ static int sskdf_derive(void *vctx, unsigned char *key, size_t keylen,
+@@ -361,6 +376,11 @@ static int sskdf_derive(void *vctx, unsigned char *key, size_t keylen,
      }
      md = ossl_prov_digest_md(&ctx->digest);
  
@@ -528,7 +553,7 @@ index ecb98de6fd..98fcc583d8 100644
      if (ctx->macctx != NULL) {
          /* H(x) = KMAC or H(x) = HMAC */
          int ret;
-@@ -473,6 +493,11 @@ static int x963kdf_derive(void *vctx, unsigned char *key, size_t keylen,
+@@ -442,6 +462,11 @@ static int x963kdf_derive(void *vctx, unsigned char *key, size_t keylen,
          return 0;
      }
  
@@ -540,7 +565,7 @@ index ecb98de6fd..98fcc583d8 100644
      return SSKDF_hash_kdm(md, ctx->secret, ctx->secret_len,
                            ctx->info, ctx->info_len, 1, key, keylen);
  }
-@@ -545,10 +570,74 @@ static int sskdf_get_ctx_params(void *vctx, OSSL_PARAM params[])
+@@ -514,10 +539,74 @@ static int sskdf_get_ctx_params(void *vctx, OSSL_PARAM params[])
  {
      KDF_SSKDF *ctx = (KDF_SSKDF *)vctx;
      OSSL_PARAM *p;
@@ -618,7 +643,7 @@ index ecb98de6fd..98fcc583d8 100644
  }
  
  static const OSSL_PARAM *sskdf_gettable_ctx_params(ossl_unused void *ctx,
-@@ -556,6 +645,9 @@ static const OSSL_PARAM *sskdf_gettable_ctx_params(ossl_unused void *ctx,
+@@ -525,6 +614,9 @@ static const OSSL_PARAM *sskdf_gettable_ctx_params(ossl_unused void *ctx,
  {
      static const OSSL_PARAM known_gettable_ctx_params[] = {
          OSSL_PARAM_size_t(OSSL_KDF_PARAM_SIZE, NULL),
@@ -628,7 +653,7 @@ index ecb98de6fd..98fcc583d8 100644
          OSSL_PARAM_END
      };
      return known_gettable_ctx_params;
-@@ -577,7 +669,7 @@ const OSSL_DISPATCH ossl_kdf_sskdf_functions[] = {
+@@ -545,7 +637,7 @@ const OSSL_DISPATCH ossl_kdf_sskdf_functions[] = {
  };
  
  const OSSL_DISPATCH ossl_kdf_x963_kdf_functions[] = {
@@ -638,10 +663,10 @@ index ecb98de6fd..98fcc583d8 100644
      { OSSL_FUNC_KDF_FREECTX, (void(*)(void))sskdf_free },
      { OSSL_FUNC_KDF_RESET, (void(*)(void))sskdf_reset },
 diff --git a/providers/implementations/kdfs/tls1_prf.c b/providers/implementations/kdfs/tls1_prf.c
-index 54124ad4cb..25a6c79a2e 100644
+index a4d64b9352..f6782a6ca2 100644
 --- a/providers/implementations/kdfs/tls1_prf.c
 +++ b/providers/implementations/kdfs/tls1_prf.c
-@@ -104,6 +104,13 @@ typedef struct {
+@@ -93,6 +93,13 @@ typedef struct {
      /* Buffer of concatenated seed data */
      unsigned char seed[TLS1_PRF_MAXBUF];
      size_t seedlen;
@@ -655,7 +680,7 @@ index 54124ad4cb..25a6c79a2e 100644
  } TLS1_PRF;
  
  static void *kdf_tls1_prf_new(void *provctx)
-@@ -140,6 +147,7 @@ static void kdf_tls1_prf_reset(void *vctx)
+@@ -129,6 +136,7 @@ static void kdf_tls1_prf_reset(void *vctx)
      EVP_MAC_CTX_free(ctx->P_sha1);
      OPENSSL_clear_free(ctx->sec, ctx->seclen);
      OPENSSL_cleanse(ctx->seed, ctx->seedlen);
@@ -663,7 +688,7 @@ index 54124ad4cb..25a6c79a2e 100644
      memset(ctx, 0, sizeof(*ctx));
      ctx->provctx = provctx;
  }
-@@ -194,6 +202,10 @@ static int kdf_tls1_prf_derive(void *vctx, unsigned char *key, size_t keylen,
+@@ -157,6 +165,10 @@ static int kdf_tls1_prf_derive(void *vctx, unsigned char *key, size_t keylen,
          ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_KEY_LENGTH);
          return 0;
      }
@@ -674,7 +699,7 @@ index 54124ad4cb..25a6c79a2e 100644
  
      /*
       * The seed buffer is prepended with a label.
-@@ -243,6 +255,9 @@ static int kdf_tls1_prf_set_ctx_params(void *vctx, const OSSL_PARAM params[])
+@@ -191,6 +203,9 @@ static int kdf_tls1_prf_set_ctx_params(void *vctx, const OSSL_PARAM params[])
          }
      }
  
@@ -684,7 +709,7 @@ index 54124ad4cb..25a6c79a2e 100644
      if ((p = OSSL_PARAM_locate_const(params, OSSL_KDF_PARAM_SECRET)) != NULL) {
          OPENSSL_clear_free(ctx->sec, ctx->seclen);
          ctx->sec = NULL;
-@@ -284,10 +299,60 @@ static const OSSL_PARAM *kdf_tls1_prf_settable_ctx_params(
+@@ -232,10 +247,60 @@ static const OSSL_PARAM *kdf_tls1_prf_settable_ctx_params(
  static int kdf_tls1_prf_get_ctx_params(void *vctx, OSSL_PARAM params[])
  {
      OSSL_PARAM *p;
@@ -748,7 +773,7 @@ index 54124ad4cb..25a6c79a2e 100644
  }
  
  static const OSSL_PARAM *kdf_tls1_prf_gettable_ctx_params(
-@@ -295,6 +360,9 @@ static const OSSL_PARAM *kdf_tls1_prf_gettable_ctx_params(
+@@ -243,6 +308,9 @@ static const OSSL_PARAM *kdf_tls1_prf_gettable_ctx_params(
  {
      static const OSSL_PARAM known_gettable_ctx_params[] = {
          OSSL_PARAM_size_t(OSSL_KDF_PARAM_SIZE, NULL),
@@ -759,7 +784,7 @@ index 54124ad4cb..25a6c79a2e 100644
      };
      return known_gettable_ctx_params;
 diff --git a/providers/implementations/kdfs/x942kdf.c b/providers/implementations/kdfs/x942kdf.c
-index 4c274fe27a..5ce23c8eb9 100644
+index b1bc6f7e1b..8173fc2cc7 100644
 --- a/providers/implementations/kdfs/x942kdf.c
 +++ b/providers/implementations/kdfs/x942kdf.c
 @@ -13,11 +13,13 @@
@@ -776,7 +801,7 @@ index 4c274fe27a..5ce23c8eb9 100644
  #include "prov/provider_ctx.h"
  #include "prov/providercommon.h"
  #include "prov/implementations.h"
-@@ -49,6 +51,9 @@ typedef struct {
+@@ -47,6 +50,9 @@ typedef struct {
      const unsigned char *cek_oid;
      size_t cek_oid_len;
      int use_keybits;
@@ -786,7 +811,7 @@ index 4c274fe27a..5ce23c8eb9 100644
  } KDF_X942;
  
  /*
-@@ -497,6 +502,10 @@ static int x942kdf_derive(void *vctx, unsigned char *key, size_t keylen,
+@@ -460,6 +466,10 @@ static int x942kdf_derive(void *vctx, unsigned char *key, size_t keylen,
          ERR_raise(ERR_LIB_PROV, PROV_R_BAD_ENCODING);
          return 0;
      }
@@ -797,7 +822,7 @@ index 4c274fe27a..5ce23c8eb9 100644
      ret = x942kdf_hash_kdm(md, ctx->secret, ctx->secret_len,
                             der, der_len, ctr, key, keylen);
      OPENSSL_free(der);
-@@ -600,10 +609,58 @@ static int x942kdf_get_ctx_params(void *vctx, OSSL_PARAM params[])
+@@ -563,10 +573,58 @@ static int x942kdf_get_ctx_params(void *vctx, OSSL_PARAM params[])
  {
      KDF_X942 *ctx = (KDF_X942 *)vctx;
      OSSL_PARAM *p;
@@ -859,7 +884,7 @@ index 4c274fe27a..5ce23c8eb9 100644
  }
  
  static const OSSL_PARAM *x942kdf_gettable_ctx_params(ossl_unused void *ctx,
-@@ -611,6 +668,9 @@ static const OSSL_PARAM *x942kdf_gettable_ctx_params(ossl_unused void *ctx,
+@@ -574,6 +632,9 @@ static const OSSL_PARAM *x942kdf_gettable_ctx_params(ossl_unused void *ctx,
  {
      static const OSSL_PARAM known_gettable_ctx_params[] = {
          OSSL_PARAM_size_t(OSSL_KDF_PARAM_SIZE, NULL),
@@ -869,6 +894,18 @@ index 4c274fe27a..5ce23c8eb9 100644
          OSSL_PARAM_END
      };
      return known_gettable_ctx_params;
+diff --git a/util/perl/OpenSSL/paramnames.pm b/util/perl/OpenSSL/paramnames.pm
+index 70f7c50fe4..6618122417 100644
+--- a/util/perl/OpenSSL/paramnames.pm
++++ b/util/perl/OpenSSL/paramnames.pm
+@@ -183,6 +183,7 @@ my %params = (
+     'KDF_PARAM_X942_SUPP_PUBINFO' =>    "supp-pubinfo",
+     'KDF_PARAM_X942_SUPP_PRIVINFO' =>   "supp-privinfo",
+     'KDF_PARAM_X942_USE_KEYBITS' =>     "use-keybits",
++    'KDF_PARAM_REDHAT_FIPS_INDICATOR' =>     "redhat-fips-indicator",
+     'KDF_PARAM_HMACDRBG_ENTROPY' =>     "entropy",
+     'KDF_PARAM_HMACDRBG_NONCE' =>       "nonce",
+     'KDF_PARAM_THREADS' =>        "threads",                # uint32_t
 -- 
-2.41.0
+2.39.2
 
