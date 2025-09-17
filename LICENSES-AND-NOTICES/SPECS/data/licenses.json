@@ -2257,6 +2257,7 @@
                 "clamav",
                 "cloud-hypervisor",
                 "cloud-provider-kubevirt",
+                "cluster-api-provider-kubevirt",
                 "cmake-fedora",
                 "containerd2",
                 "coredns",
@@ -2474,9 +2475,9 @@
             "license": "[ASL 2.0 License and spec specific licenses](http://www.apache.org/licenses/LICENSE-2.0)",
             "specs": [
                 "fwctl",
-                "fwctl-signed",
                 "fwctl-hwe",
                 "fwctl-hwe-signed",
+                "fwctl-signed",
                 "ibarr",
                 "ibsim",
                 "iser",
